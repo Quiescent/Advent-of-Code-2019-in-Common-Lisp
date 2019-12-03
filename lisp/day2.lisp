@@ -11,6 +11,7 @@
 (load "graph.lisp")
 (load "debug.lisp")
 (load "hash.lisp")
+(load "computer")
 
 (defpackage :day2
   (:use :common-lisp)
@@ -18,7 +19,8 @@
   (:use :graph)
   (:use :read-file)
   (:use :hash)
-  (:use :iter))
+  (:use :iter)
+  (:use :computer))
 
 (in-package :day2)
 
@@ -33,22 +35,6 @@
     (aref program 0)))
 
 ;; Wrong: 1
-
-(defun interpret (array)
-  (iter
-    (for i from 0 below (length array) by 4)
-    (for op   = (aref array (+ i 0)))
-    (for p1   = (aref array (+ i 1)))
-    (for p2   = (aref array (+ i 2)))
-    (for dest = (aref array (+ i 3)))
-    (cond
-      ((eq op 99) (return))
-      ((eq op 1)  (setf (aref array dest)
-                        (+ (aref array p1)
-                           (aref array p2))))
-      ((eq op 2)  (setf (aref array dest)
-                        (* (aref array p1)
-                           (aref array p2)))))))
 
 ;; # PART 2:
 
