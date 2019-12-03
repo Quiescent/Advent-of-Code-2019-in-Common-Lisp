@@ -28,7 +28,7 @@
 
 (defun day2-part-1 (input-elements)
   "Run my solution to part one of the problem on the input in INPUT-ELEMENTS."
-  (let ((program (map 'vector #'identity (car input-elements))))
+  (let ((program (parse-computer-registers input-elements)))
     (setf (aref program 1) 12)
     (setf (aref program 2) 2)
     (interpret program)
@@ -40,7 +40,7 @@
 
 (defun day2-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
-  (let ((program (map 'vector #'identity (car input-elements))))
+  (let ((program (parse-computer-registers input-elements)))
     (iter outer
       (for noun from 0 below (length program))
       (iter
