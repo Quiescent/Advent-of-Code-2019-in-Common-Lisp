@@ -50,7 +50,6 @@
         (setf (aref program-copy 2) verb)
         (interpret program-copy)
         (when (eq 19690720 (aref program-copy 0))
-          (print program-copy)
           (return-from outer (+ (* 100 noun) verb)))))))
 
 ;; wrong: 121000
