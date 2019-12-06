@@ -44,8 +44,6 @@
 
 ;; # PART 2:
 
-(defvar *bailout-count* 1000000)
-
 (defun day6-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
   (let* ((tuples           (parse-tuples input-elements))
