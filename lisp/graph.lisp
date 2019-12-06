@@ -148,7 +148,7 @@ list because it's used internally by the search."
        (with candidate-nodes = (if (null ,from)
                                    (iter (for (from to) in-hashtable ,g)
                                          (adjoining (cons from nil)))
-                                   (list ,(cons from nil))))
+                                   (list (cons ,from nil))))
        (incf ,count)
        (when (> ,count ,*dfs-bailout-count*)
          (format t "BFS continued for more than ,*dfs-bailout-count*.  This is probably an error.")
@@ -161,12 +161,12 @@ list because it's used internally by the search."
                            ,by
                            (car candidate-nodes)))
        (setq candidate-nodes (delete ,var candidate-nodes))
-       (when (gethash ,(car var) ,visited)
+       (when (gethash (car ,var) ,visited)
          (next-iteration))
-       (setf (gethash ,(car var) ,visited) t)
+       (setf (gethash (car ,var) ,visited) t)
        (setq candidate-nodes (remove-duplicates (append candidate-nodes
-                                                        (mapcar (lambda (node) (cons node ,(car var)))
-                                                                (gethash ,(car var) ,g))))))))
+                                                        (mapcar (lambda (node) (cons node (car ,var)))
+                                                                (gethash (car ,var) ,g))))))))
 
 ;; Scratch
 
