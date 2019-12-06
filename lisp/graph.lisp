@@ -122,6 +122,47 @@ list because it's used internally by the search."
        (setf (gethash ,var ,visited) t)
        (setq candidate-nodes (union (gethash ,var ,g) candidate-nodes)))))
 
+(defmacro-driver (FOR var BFS-ACROSS-GRAPH graph &sequence)
+  "Search GRAPH depth-first, starting at the value of the FROM keyword binding VAR.
+
+Supports the BY keyword which should be an expression which selects a
+node from the list CANDIDATE-NODES.  You should avoid modifying the
+list because it's used internally by the search."
+  (let ((g                  (gensym))
+        (count              (gensym))
+        (kwd                (if generate 'generate 'for))
+        (non-default-search (not (eq 1 by))))
+    (cond
+      ((not (null upfrom))     (error "BFS-ACROSS-GRAPH doesn't support UPFROM"))
+      ((not (null downfrom))   (error "BFS-ACROSS-GRAPH doesn't support DOWNFROM"))
+      ((not (null to))         (error "BFS-ACROSS-GRAPH doesn't support TO"))
+      ((not (null downto))     (error "BFS-ACROSS-GRAPH doesn't support DOWNTO"))
+      ((not (null above))      (error "BFS-ACROSS-GRAPH doesn't support ABOVE"))
+      ((not (null below))      (error "BFS-ACROSS-GRAPH doesn't support BELOW"))
+      ((not (null with-index)) (error "BFS-ACROSS-GRAPH doesn't support WITH-INDEX")))
+    `(progn
+       (with ,count          = 0)
+       (with ,g              = ,graph)
+       (with candidate-nodes = (if (null ,from)
+                                   (iter (for (from to) in-hashtable ,g)
+                                         (adjoining (cons from nil)))
+                                   (list (cons ,from nil))))
+       (incf ,count)
+       (when (> ,count ,*dfs-bailout-count*)
+         (format t "BFS continued for more than ,*dfs-bailout-count*.  This is probably an error.")
+         (finish))
+       (while candidate-nodes)
+       (initially (setq ,var (if ,non-default-search
+                                 ,by
+                                 (car candidate-nodes))))
+       (,kwd ,var next (if ,non-default-search
+                           ,by
+                           (car candidate-nodes)))
+       (setq candidate-nodes (delete ,var candidate-nodes))
+       (setq candidate-nodes (remove-duplicates (append candidate-nodes
+                                                        (mapcar (lambda (node) (cons node (car ,var)))
+                                                                (gethash (car ,var) ,g))))))))
+
 (defmacro-driver (FOR var BFS-ACROSS-GRAPH-WITHOUT-DUPLICATES graph &sequence)
   "Search GRAPH depth-first, starting at the value of the FROM keyword binding VAR.
 
