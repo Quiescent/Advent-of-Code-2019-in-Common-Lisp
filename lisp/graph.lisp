@@ -123,7 +123,10 @@ list because it's used internally by the search."
        (setq candidate-nodes (union (gethash ,var ,g) candidate-nodes)))))
 
 (defmacro-driver (FOR var BFS-ACROSS-GRAPH graph &sequence)
-  "Search GRAPH depth-first, starting at the value of the FROM keyword binding VAR.
+  "Search GRAPH bredth-first, starting at the value of the FROM keyword binding VAR.
+
+VAR becomes the current node and the node which came from at each
+step.
 
 Supports the BY keyword which should be an expression which selects a
 node from the list CANDIDATE-NODES.  You should avoid modifying the
@@ -164,7 +167,10 @@ list because it's used internally by the search."
                                                                 (gethash (car ,var) ,g))))))))
 
 (defmacro-driver (FOR var BFS-ACROSS-GRAPH-WITHOUT-DUPLICATES graph &sequence)
-  "Search GRAPH depth-first, starting at the value of the FROM keyword binding VAR.
+  "Search GRAPH bredth-first, starting at the value of the FROM keyword binding VAR.
+
+VAR becomes the current node and the node which you came from at each
+step.
 
 Supports the BY keyword which should be an expression which selects a
 node from the list CANDIDATE-NODES.  You should avoid modifying the
