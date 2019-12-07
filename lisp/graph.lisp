@@ -271,7 +271,7 @@ list because it's used internally by the search."
       ((not (null above))      (error "DFS-ACROSS-FUNCTION doesn't support ABOVE"))
       ((not (null below))      (error "DFS-ACROSS-FUNCTION doesn't support BELOW"))
       ((not (null with-index)) (error "DFS-ACROSS-FUNCTION doesn't support WITH-INDEX"))
-      ((not (functionp f))     (error "You can't DFS across a function which isn't a function!"))
+      ;((not (functionp f))     (error "You can't DFS across a function which isn't a function!"))
       ((null from)             (error "you must specify where the search should starte with FROM")))
     `(progn
        (with ,count          = 0)
@@ -308,7 +308,7 @@ list because it's used internally by the search."
       ((not (null above))      (error "DFS-ACROSS-FUNCTION doesn't support ABOVE"))
       ((not (null below))      (error "DFS-ACROSS-FUNCTION doesn't support BELOW"))
       ((not (null with-index)) (error "DFS-ACROSS-FUNCTION doesn't support WITH-INDEX"))
-      ((not (functionp f))     (error "You can't DFS across a function which isn't a function!"))
+      ;((not (functionp f))     (error "You can't DFS across a function which isn't a function!"))
       ((null from)             (error "you must specify where the search should starte with FROM")))
     `(progn
        (with ,count          = 0)
@@ -331,28 +331,111 @@ list because it's used internally by the search."
        (setf (gethash ,var ,visited) t)
        (setq candidate-nodes (union (funcall ,f ,var) candidate-nodes)))))
 
-;#+nil
-;; (progn
-;;   (defun search-function (x)
-;;     (if (or (> x 5)
-;;             (< x 0))
-;;         nil
-;;         (list (1+ x) (+ x 2))))
+(defmacro-driver (FOR var BFS-ACROSS-FUNCTION f &sequence)
+  "Search function f depth-first, starting at the value of the FROM keyword binding VAR.
 
-;;   (print "Standard:")
+Supports the BY keyword which should be an expression which selects a
+node from the list CANDIDATE-NODES.  You should avoid modifying the
+list because it's used internally by the search."
+  (let ((count              (gensym))
+        (kwd                (if generate 'generate 'for))
+        (non-default-search (not (eq 1 by))))
+    (cond
+      ((not (null upfrom))     (error "BFS-ACROSS-FUNCTION doesn't support UPFROM"))
+      ((not (null downfrom))   (error "BFS-ACROSS-FUNCTION doesn't support DOWNFROM"))
+      ((not (null to))         (error "BFS-ACROSS-FUNCTION doesn't support TO"))
+      ((not (null downto))     (error "BFS-ACROSS-FUNCTION doesn't support DOWNTO"))
+      ((not (null above))      (error "BFS-ACROSS-FUNCTION doesn't support ABOVE"))
+      ((not (null below))      (error "BFS-ACROSS-FUNCTION doesn't support BELOW"))
+      ((not (null with-index)) (error "BFS-ACROSS-FUNCTION doesn't support WITH-INDEX"))
+      ;((not (functionp f))     (error "You can't BFS across a function which isn't a function!"))
+      ((null from)             (error "you must specify where the search should starte with FROM")))
+    `(progn
+       (with ,count          = 0)
+       (with candidate-nodes = (list (cons ,from nil)))
+       (incf ,count)
+       (when (> ,count ,*dfs-bailout-count*)
+         (format t "BFS continued for more than ,*dfs-bailout-count*.  This is probably an error.")
+         (finish))
+       (while candidate-nodes)
+       (initially (setq ,var (if ,non-default-search
+                                 ,by
+                                 (car candidate-nodes))))
+       (,kwd ,var next (if ,non-default-search
+                           ,by
+                           (car candidate-nodes)))
+       (setq candidate-nodes (delete ,var candidate-nodes))
+       (setq candidate-nodes (append candidate-nodes (mapcar (lambda (node) (cons node (car ,var)))
+                                                                (funcall ,f (car ,var))))))))
 
-;;   (iter
-;;     (for x dfs-across-function #'search-function from 1)
-;;     (print x))
+(defmacro-driver (FOR var BFS-ACROSS-FUNCTION-WITHOUT-DUPLICATES f &sequence)
+  "Search function F depth-first, starting at the value of the FROM keyword binding VAR.
 
-;;   (print "")
+Supports the BY keyword which should be an expression which selects a
+node from the list CANDIDATE-NODES.  You should avoid modifying the
+list because it's used internally by the search."
+  (let ((count              (gensym))
+        (visited            (gensym))
+        (kwd                (if generate 'generate 'for))
+        (non-default-search (not (eq 1 by))))
+    (cond
+      ((not (null upfrom))     (error "BFS-ACROSS-FUNCTION doesn't support UPFROM"))
+      ((not (null downfrom))   (error "BFS-ACROSS-FUNCTION doesn't support DOWNFROM"))
+      ((not (null to))         (error "BFS-ACROSS-FUNCTION doesn't support TO"))
+      ((not (null downto))     (error "BFS-ACROSS-FUNCTION doesn't support DOWNTO"))
+      ((not (null above))      (error "BFS-ACROSS-FUNCTION doesn't support ABOVE"))
+      ((not (null below))      (error "BFS-ACROSS-FUNCTION doesn't support BELOW"))
+      ((not (null with-index)) (error "BFS-ACROSS-FUNCTION doesn't support WITH-INDEX"))
+      ;((not (functionp f))     (error "You can't BFS across a function which isn't a function!"))
+      ((null from)             (error "you must specify where the search should starte with FROM")))
+    `(progn
+       (with ,count          = 0)
+       (with ,visited        = (make-hash-table :test #'equal))
+       (with candidate-nodes = (list (cons ,from nil)))
+       (incf ,count)
+       (when (> ,count ,*dfs-bailout-count*)
+         (format t "BFS continued for more than ,*dfs-bailout-count*.  This is probably an error.")
+         (finish))
+       (while candidate-nodes)
+       (initially (setq ,var (if ,non-default-search
+                                 ,by
+                                 (car candidate-nodes))))
+       (,kwd ,var next (if ,non-default-search
+                           ,by
+                           (car candidate-nodes)))
+       (setq candidate-nodes (delete ,var candidate-nodes))
+       (when (gethash (car ,var) ,visited)
+         (next-iteration))
+       (setf (gethash (car ,var) ,visited) t)
+       (setq candidate-nodes (append candidate-nodes (mapcar (lambda (node) (cons node (car ,var)))
+                                                             (funcall ,f (car ,var))))))))
 
-;;   (iter
-;;     (for x dfs-across-function #'search-function from 1 by (car (last candidate-nodes)))
-;;     (print x))
+#+nil
+(progn
+  (defun search-function (x)
+    (if (or (> x 5)
+            (< x 0))
+        nil
+        (list (1+ x) (+ x 2))))
 
-;;   (print "No duplicates:")
+  ;; (print "Standard:")
 
-;;   (iter
-;;     (for x dfs-across-function-without-duplicates #'search-function from 1)
-;;     (print x)))
+  ;; (iter
+  ;;   (for x dfs-across-function #'search-function from 1)
+  ;;   (print x))
+
+  ;; (print "")
+
+  ;; (iter
+  ;;   (for x dfs-across-function #'search-function from 1 by (car (last candidate-nodes)))
+  ;;   (print x))
+
+  ;; (print "No duplicates:")
+
+  ;; (iter
+  ;;   (for x dfs-across-function-without-duplicates #'search-function from 1)
+  ;;   (print x))
+
+  (iter
+    (for x bfs-across-function-without-duplicates #'search-function from 1)
+    (print x)))
