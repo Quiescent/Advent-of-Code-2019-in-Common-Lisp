@@ -51,7 +51,7 @@
          (d2 (let ((res)) (lambda () (or res (setf res (aref program (+ ptr 2)))))))
          (d3 (let ((res)) (lambda () (or res (setf res (aref program (+ ptr 3))))))))
      (case (mod (aref program ptr) 10)
-       ,@(mapcar (lambda (op) (list (car op) (print (replace-anaphors (cadr op))))) ops))))
+       ,@(mapcar (lambda (op) (list (car op) (replace-anaphors (cadr op)))) ops))))
 
 (defun replace-anaphors (xs)
   (cond
@@ -71,12 +71,12 @@
     (with ptr = 0)
     (for op = (aref program ptr))
     (when (eq op 99)
-      (return))
+      (return t))
     (defcpu ((1 (setf (aref program d3) (+ p1 p2)
                       ptr               (+ ptr 4)))
              (2 (setf (aref program d3) (* p1 p2)
                       ptr               (+ ptr 4)))
-             (3 (setf (aref program d3) (progn (format t "Please input a number: ") (read))
+             (3 (setf (aref program d1) (read)
                       ptr               (+ ptr 2)))
              (4 (progn
                   (print p1)
@@ -90,4 +90,5 @@
              (7 (setf (aref program d3) (if (< p1 p2) 1 0)
                       ptr               (+ ptr 4)))
              (8 (setf (aref program d3) (if (eql p1 p2) 1 0)
-                      ptr               (+ ptr 4)))))))
+                      ptr               (+ ptr 4)))))
+    (finally (return nil))))
