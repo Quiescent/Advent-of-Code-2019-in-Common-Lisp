@@ -53,7 +53,6 @@
                             (with-input-from-string (*standard-input* (format nil "~a~%~a" phase-five input-five))
                               (computer:interpret (copy-seq program)))
                             (let ((output (get-output-stream-string *standard-output*)))
-                              ;(format *original-stdout* "Output: ~a~%" output)
                               (read-from-string output)))))))))))
 
 ;; Wrong: 1916
