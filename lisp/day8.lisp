@@ -69,6 +69,8 @@
                                           (#\2 #\~))))
                    (format t "~%")))))
 
+;; I can't tell what's wrong with these :/
+
 ;; (iter
 ;;     (with image = (make-array '(25 6) :initial-element #\2))
 ;;     (for layer in (chunk (car input-elements)))
