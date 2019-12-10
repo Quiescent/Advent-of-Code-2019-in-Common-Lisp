@@ -60,8 +60,8 @@
        (count (not seen-angle))))))
 
 (defun angle (x y x-other y-other)
-  (let ((rise (- y-other y))
-        (run  (- x-other x)))
+  (let ((rise (- y-other y)) ;; Swapped because of coordinate system
+        (run  (- x x-other)))
     (cons (if (< rise 0) 'neg 'pos)
           (cons (if (< run 0) 'neg 'pos)
                 (if (eq 0 run)
@@ -93,26 +93,21 @@
     (destructuring-bind (x-start . y-start) (start-coord grid x-dim y-dim)
       (iter
         (for i from 0)
-        (with angle = (atan 0 1))
-        (with previous-angle = nil)
-        (with x-prev         = x-start)
-        (with y-prev         = (+ y-start 1))
-        (multiple-value-bind (coord new-angle) (closest-seen previous-angle angle x-start y-start grid x-dim y-dim x-prev y-prev)
-          (format t "result ~a ~a" coord new-angle)
+        (with angle = '(pos pos . infinity))
+        (with first = t)
+        (multiple-value-bind (coord new-angle) (closest-seen first angle x-start y-start grid x-dim y-dim)
+          (format t "result [~a] ~a ~a" i coord new-angle)
           (setf (aref grid (cdr coord) (car coord)) nil)
-          (setf previous-angle angle)
+          (setf first nil)
           (setf angle new-angle)
-          (setf x-prev (car coord))
-          (setf y-prev (cdr coord))
           (when (eq i 200)
             (return (+ (* (car coord) 100)
                        (cdr coord)))))))))
 
-(defun closest-seen (previous-angle angle-start x y grid x-dim y-dim x-prev y-prev)
+(defun closest-seen (first angle-start x y grid x-dim y-dim)
   (iter
     (for y-other from 0 below y-dim)
     (with closest)
-    (with closest-test)
     (with hits)
     (iter
       (for x-other from 0 below x-dim)
@@ -120,25 +115,22 @@
                 (and (eq x x-other)
                      (eq y y-other)))
         (next-iteration))
-      (format t "~a, ~a   ~a, ~a~%" (- x-prev x) (- y-prev y) (- x x-other) (- y y-other))
-      (for angle-other = (angle-between (- x-prev x) (- y-prev y) (- x-other x) (- y-other y)))
-      (when (and previous-angle
-                 (= angle-other previous-angle))
+      (for angle-other = (angle x-other y-other x y))
+      (when (and (not first)
+                 (equal angle-other angle-start))
         (next-iteration))
-      (format t "~a, ~a  ~a, ~a (~a): ~a~%" x y x-other y-other angle-start angle-other)
-      (for test-angle = (if (> angle-other 0)
-                            most-positive-fixnum
-                            (abs angle-other)))
+      (format t "~a, ~a  ~a, ~a (~a) [~a]: ~a~%" x y x-other y-other angle-start closest angle-other)
       (cond
-        ((null closest-test) (progn
-                               (setf hits         (list (cons x-other y-other)))
-                               (setf closest      angle-other)
-                               (setf closest-test test-angle)))
-        ((< test-angle  closest-test) (progn
-                                        (setf hits         (list (cons x-other y-other)))
-                                        (setf closest      angle-other)
-                                        (setf closest-test test-angle)))
-        ((= angle-other closest) (push (cons x-other y-other) hits))))
+        ((null closest) (progn
+                          (setf hits    (list (cons x-other y-other))
+                                closest angle-other)))
+        ((and (angle-closer angle-start angle-other closest)
+              (or first
+                  (angle-after angle-start angle-other)))
+         (progn
+           (setf hits    (list (cons x-other y-other))
+                 closest angle-other)))
+        ((equal angle-other closest) (push (cons x-other y-other) hits))))
     (finally
      (progn
        (format t "closest: ~a~%" closest)
@@ -150,17 +142,84 @@
                                                              (* (- y-res y) (- y-res y))))))
          (format t "Closest-hit: ~a, ~a" x-res y-res)
          (return (values (cons x-res y-res)
-                         (atan (- x x-res) (- y y-res)))))))))
+                         (angle x-res y-res x y))))))))
 
-;; dot = x1*x2 + y1*y2      # dot product between [x1, y1] and [x2, y2]
-;; det = x1*y2 - y1*x2      # determinant
-;; angle = atan2(det, dot)  # atan2(y, x) or atan2(sin, cos)
+;; The 1st asteroid to be vaporized is at 11,12.
+;; The 2nd asteroid to be vaporized is at 12,1.
+;; The 3rd asteroid to be vaporized is at 12,2.
+;; The 10th asteroid to be vaporized is at 12,8.
 
-(defun angle-between (x1 y1 x2 y2)
-  (let* ((dot (+ (* x1 x2) (* y1 y2)))
-         (det (- (* x1 y2) (* y1 x2)))
-         (res (atan det dot)))
-    (- res pi)))
+;; The 20th asteroid to be vaporized is at 16,0.
+;; The 50th asteroid to be vaporized is at 16,9.
+;; The 100th asteroid to be vaporized is at 10,16.
+;; The 199th asteroid to be vaporized is at 9,6.
+;; The 200th asteroid to be vaporized is at 8,2.
+;; The 201st asteroid to be vaporized is at 10,9.
+;; The 299th and final asteroid to be vaporized is at 11,1.
+
+(defun angle-closer (angle-1 angle-2 angle-3)
+  "Produce t if ANGLE-2 is closer to ANGLE-1 than ANGLE-3."
+  (if (equal angle-2 angle-3)
+      nil
+      (destructuring-bind (x-sign-1 y-sign-1 . angle-frac-1) angle-1
+        (destructuring-bind (x-sign-2 y-sign-2 . angle-frac-2) angle-2
+          (destructuring-bind (x-sign-3 y-sign-3 . angle-frac-3) angle-3
+            (let* ((encoded-1 (encode x-sign-1 y-sign-1))
+                   (encoded-2 (mod (+ encoded-1 (encode x-sign-2 y-sign-2)) 4))
+                   (encoded-3 (mod (+ encoded-1 (encode x-sign-3 y-sign-3)) 4)))
+              (or (< encoded-2 encoded-3)
+                  (and (eq encoded-2 encoded-3)
+                       (< (subtract-angle angle-frac-2 angle-frac-1)
+                          (subtract-angle angle-frac-3 angle-frac-1))))))))))
+
+(defun subtract-angle (angle-1 angle-2)
+  (abs (- (if (eq angle-1 'infinity) most-positive-fixnum angle-1)
+          (if (eq angle-2 'infinity) most-positive-fixnum angle-2))))
+
+(defun inf-< (one other)
+  (cond
+    ((eq one   'infinity) nil)
+    ((eq other 'infinity) t)
+    ((< one other)        t)))
+
+(defun angle-after (angle-1 angle-2)
+  (if (equal angle-1 angle-2)
+      nil
+      (destructuring-bind (x-sign-1 y-sign-1 . angle-frac-1) angle-1
+        (destructuring-bind (x-sign-2 y-sign-2 . angle-frac-2) angle-2
+          (let ((signs-1   (list x-sign-1 y-sign-1))
+                (encoded-1 (encode x-sign-1 y-sign-1))
+                (signs-2   (list x-sign-2 y-sign-2))
+                (encoded-2 (encode x-sign-2 y-sign-2)))
+           (cond
+             ((equal signs-1 signs-2) (inf-< angle-frac-2 angle-frac-1))
+             (t                       (inf-< encoded-1 encoded-2))))))))
+
+(defun angle-less (angle-1 angle-2)
+  (if (equal angle-1 angle-2)
+      nil
+      (destructuring-bind (x-sign-1 y-sign-1 . angle-frac-1) angle-1
+        (destructuring-bind (x-sign-2 y-sign-2 . angle-frac-2) angle-2
+          (let ((signs-1   (list x-sign-1 y-sign-1))
+                (encoded-1 (encode x-sign-1 y-sign-1))
+                (signs-2   (list x-sign-2 y-sign-2))
+                (encoded-2 (encode x-sign-2 y-sign-2)))
+           (cond
+             ((equal signs-1 signs-2) (inf-< angle-frac-1 angle-frac-2))
+             (t                       (inf-< encoded-1 encoded-2))))))))
+
+(defun inf-> (one other)
+  (cond
+    ((and (eq one 'infinity) (not (eq other 'infinity))) t)
+    ((eq other 'infinity)                                nil)
+    ((> one other)                                       t)))
+
+(defun encode (rise-sign run-sign)
+  (cond
+    ((and (eq run-sign 'pos) (eq rise-sign 'pos)) 0)
+    ((and (eq run-sign 'pos) (eq rise-sign 'neg)) 1)
+    ((and (eq run-sign 'neg) (eq rise-sign 'neg)) 2)
+    ((and (eq run-sign 'neg) (eq rise-sign 'pos)) 3)))
 
 (defun start-coord (grid x-dim y-dim)
   (iter
