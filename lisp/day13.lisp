@@ -58,8 +58,7 @@
                            (2 'block)
                            (3 'paddle)
                            (4 'ball)))
-            (when (eq tile 'paddle)
-              (format t "Paddle: ~a, ~a~%" x y))
+            ;(format t "~a, ~a: ~a~%" x y tile)
             (setf (gethash (cons x y) grid) tile))))
       (finally (return (iter (for (key value) in-hashtable grid)
                              (counting (eq value 'block))))))))
@@ -79,39 +78,76 @@
 ;; # PART 2:
 
 ;; Paddle at 21, 23 initially...
+;; Dimensions: 42 x 25
 
 (defun day13-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
   (let ((program (parse-computer-registers input-elements))
-        (*relative-base* 0)
         (grid (make-hash-table :test #'equal))
+        (*relative-base* 0)
+        (ptr 0)
+        (joystick-input 0)
+        (game-running nil)
         (paddle-x 21)
-        (paddle-y 23)
-        (ptr 0))
+        game-won
+        tile
+        score
+        x
+        y)
     (setf (aref program 0) 2)
     (iter
-      (for map-drawing-round from 0 below 1050)
-      (multiple-value-bind (new-ptr x halted) (interpret program nil ptr)
-        (setf ptr new-ptr)
-        (multiple-value-bind (new-new-ptr y halted) (interpret program nil ptr)
-          (setf ptr new-new-ptr)
-          (multiple-value-bind (new-new-new-ptr tilde halted) (interpret program nil ptr)
-            (setf ptr new-new-new-ptr)))))
-    (print "Starting game...")
-    (print "")
-    (iter
-      (for counter from 0 below 10000)
-      (with input = 0)
-      (multiple-value-bind (new-ptr x y score halted requires-input) (play-round program ptr input)
-        (setf input 0)
-        (setf input (diff-to-one paddle-x x))
-        (incf paddle-x input)
-        (format t "New paddle pos: ~a, ~a~%" paddle-x paddle-y)
+      (for i from 0 below 10000000)
+      (when (not (or (not game-running)
+                 (iter (for (key value) in-hashtable grid)
+                       (when (eq value 'block)
+                         (return t)))))
+        (setf game-won t))
+      (multiple-value-bind (new-ptr new-x halted) (interpret program joystick-input ptr)
         (when halted
-          (print "BAILING")
+          (print "GAME OVER!")
+          (return nil))
+        (setf ptr new-ptr)
+        (setf x new-x))
+      (multiple-value-bind (new-ptr new-y halted) (interpret program joystick-input ptr)
+        (when halted
+          (print "GAME OVER!")
+          (return nil))
+        (setf y new-y)
+        (setf ptr new-ptr))
+      (multiple-value-bind (new-ptr tilde halted) (interpret program joystick-input ptr)
+        (setf ptr new-ptr)
+        (when halted
+          (print "GAME OVER!")
+          (return nil))
+                                        ;(format t "~a ~a: ~a~%" x y tilde)
+        (if (not (and (eq x -1)
+                      (eq y 0)))
+            (progn
+              (setf tile (case tilde
+                           (0 'empty)
+                           (1 'wall)
+                           (2 'block)
+                           (3 'paddle)
+                           (4 'ball)))
+              (setf (gethash (cons x y) grid) tile))
+            (setf score tilde)))
+      (when (and game-running (eq tile 'ball))
+        (for ball-x = (iter (for (key value) in-hashtable grid)
+                            (when (eq value 'ball)
+                              (return (car key)))))
+        (print-map grid)
+        (setf joystick-input (diff-to-one paddle-x ball-x))
+        (incf paddle-x joystick-input)
+        (format t "Paddle: ~a~%" paddle-x)
+        (format t "Ball: ~a~%" ball-x)
+        (format t "Input: ~a~%" joystick-input))
+      (when (and (eq x -1)
+                 (eq y 0))
+        (when game-won
+          (format t "Final score: ~a~%" score)
           (return score))
-        (format t "~a, ~a: ~a~%" x y score)
-        (setf ptr new-ptr)))))
+        (setf game-running t)
+        (format t "Score: ~a~%" score)))))
 
 (defun diff-to-one (x y)
   (cond
@@ -119,23 +155,61 @@
     ((> x y)  -1)
     ((< x y)  1)))
 
-(defun play-round (program ptr input)
-  (block outer
-    (multiple-value-bind (new-ptr x halted requires-input-1) (interpret program input ptr)
-      (print "first")
-      (when halted
-        (print "BAILING!")
-        (return-from outer nil))
-      (setf ptr new-ptr)
-      (multiple-value-bind (new-new-ptr y halted requires-input-2) (interpret program input ptr)
-        (print "second")
-        (when halted
-          (print "BAILING!")
-          (return-from outer nil))
-        (setf ptr new-new-ptr)
-        (multiple-value-bind (new-new-new-ptr score halted requires-input-3) (interpret program input ptr)
-          (print "third")
-          (return-from outer (values new-new-new-ptr x y score halted requires-input-3)))))))
+;; (defun read-score (ptr program joystick-input)
+;;   (multiple-value-bind (new-ptr x halted) (interpret program joystick-input ptr)
+;;     (when halted
+;;       (print "BAILING!"))
+;;     (multiple-value-bind (new-new-ptr y halted) (interpret program joystick-input new-ptr)
+;;       (when halted
+;;         (print "BAILING!"))
+;;       (multiple-value-bind (new-new-new-ptr score halted) (interpret program joystick-input new-new-ptr)
+;;         (when halted
+;;           (print "BAILING!"))
+;;         (format t "~a ~a ~a~%" x y score)
+;;         (when (not (and (eq x -1)
+;;                         (eq y 0)))
+;;           (error "expecting score..."))
+;;         (values new-new-new-ptr score)))))
+
+;; (defun read-map (input-ptr program joystick-input)
+;;   (let ((grid (make-hash-table :test #'equal))
+;;         (ptr  input-ptr))
+;;     (iter
+;;       (for i from 0 below 1050)
+;;       (multiple-value-bind (new-ptr x halted) (interpret program joystick-input ptr)
+;;         (when halted
+;;           (print "BAILING!"))
+;;         (setf ptr new-ptr)
+;;         (multiple-value-bind (new-new-ptr y halted) (interpret program joystick-input ptr)
+;;           (when halted
+;;             (print "BAILING!"))
+;;           (setf ptr new-new-ptr)
+;;           (multiple-value-bind (new-new-new-ptr tilde halted) (interpret program joystick-input ptr)
+;;             (when halted
+;;               (print "BAILING!"))
+;;             (setf ptr new-new-new-ptr)
+;;             (format t "~a ~a: ~a~%" x y tilde)
+;;             (for tile = (case tilde
+;;                           (0 'empty)
+;;                           (1 'wall)
+;;                           (2 'block)
+;;                           (3 'paddle)
+;;                           (4 'ball)))
+;;             (setf (gethash (cons x y) grid) tile))))
+;;       (finally (return (values ptr grid))))))
+
+(defun print-map (grid)
+  (iter
+    (for y from 0 below 25)
+    (iter
+      (for x from 0 below 42)
+      (format t "~a" (case (gethash (cons x y) grid)
+                       (empty  #\.)
+                       (wall   #\|)
+                       (block  #\#)
+                       (paddle #\_)
+                       (ball   #\o))))
+    (format t "~%")))
 
 ;; Scratch area:
 
