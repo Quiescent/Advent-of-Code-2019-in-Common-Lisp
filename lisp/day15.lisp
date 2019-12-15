@@ -30,39 +30,15 @@
   "Run my solution to part one of the problem on the input in INPUT-ELEMENTS."
   (let* ((program (parse-computer-registers input-elements))
          (*relative-base* 0)
-         (coords (list (cons 1 (cons 0 0))))
+         (coords (list (cons 0 (cons 0 0))))
          (seen (make-hash-table :test #'equal)))
     (multiple-value-bind (grid from destination) (discover-map program)
-      (multiple-value-bind (min-x max-x min-y max-y) (iter
-                                                       (for (key value) in-hashtable grid)
-                                                       (for (x . y) = key)
-                                                       (minimizing x into min-x)
-                                                       (maximizing x into max-x)
-                                                       (minimizing y into min-y)
-                                                       (maximizing y into max-y)
-                                                       (finally (return (values min-x max-x min-y max-y))))
-        (format t "~%")
-        (iter
-          (for y from min-y to max-y)
-          (iter
-            (for x from min-x to max-x)
-            (when (and (eq x 0)
-                       (eq y 0))
-              (format t "O")
-              (next-iteration))
-            (for tile = (gethash (cons x y) grid))
-            (format t "~a"
-                    (cond
-                      ((eq tile 'wall)        #\#)
-                      ((eq tile 'destination) #\X)
-                      ((eq tile 'floor)       #\_)
-                      (t                      #\#))))
-          (format t "~%")))
-      ;(format t "Destination: ~a~%" destination)
+      ;;(format t "Destination: ~a~%" destination)
+      (print-grid grid)
       (iter
         (for (steps . coord) = (pop coords))
-        ;(format t "steps: ~a~%" steps)
-        ;(format t "coord: ~a~%" coord)
+        ;;(format t "steps: ~a~%" steps)
+        ;;(format t "coord: ~a~%" coord)
         (when (equal coord destination)
           (return steps))
         (setf (gethash coord seen) t)
@@ -111,7 +87,7 @@
     (setf (gethash origin grid) 'floor)
     (iter
       (for i from 0 below 100000)
-      ;(format t "coord: ~a: " coord)
+      ;;(format t "coord: ~a: " coord)
       (setf (gethash coord seen) t)
       ;; Find first direction...
       (destructuring-bind (x . y) coord
@@ -127,7 +103,7 @@
         (return (values grid from destination)))
       ;; If there is none then do
       (when (not direction)
-        ;(format t "Back tracking...~%")
+        ;;(format t "Back tracking...~%")
         (let ((old-coord (gethash coord from)))
           (setf direction (direction-to old-coord coord))
           (setf coord old-coord))
@@ -142,18 +118,20 @@
           (0 (progn
                (setf (gethash current-coord grid) 'wall)
                (setf (gethash current-coord seen) t)
-               ;(format t "WALL~%")
+               ;;(format t "WALL~%")
                ))
           (2 (progn
-               (setf (gethash coord grid) 'destination)
+               (setf (gethash current-coord grid) 'destination)
+               (setf (gethash current-coord seen) t)
                (setf (gethash current-coord from) coord)
+               (setf coord current-coord)
                (setf destination coord)
-               ;(format t "DEST~%")
+               ;;(format t "DEST~%")
                ))
           (1 (progn
-               ;(format t "FLOOR~%")
-               (setf (gethash coord grid) 'floor)
-               (setf (gethash coord seen) t)
+               ;;(format t "FLOOR~%")
+               (setf (gethash current-coord grid) 'floor)
+               (setf (gethash current-coord seen) t)
                (setf (gethash current-coord from) coord)
                (setf coord current-coord))))))))
 
@@ -174,18 +152,56 @@
         ((> y1 y2) 2)
         ((< y1 y2) 1)))))
 
+(defun discover-map-2 (program)
+  (let ((ptr   0)
+        (coord (cons 0 0))
+        (from  (make-hash-table :test #'equal))
+        (grid  (make-hash-table :test #'equal)))
+    (setf (gethash (cons 0 0) grid) 'floor)
+    (iter
+      (for i from 0 below 100000)
+      (for (x . y) = coord)
+      (for direction =
+           (cond
+             ((not (gethash (cons x (1- y)) grid)) 1)
+             ((not (gethash (cons x (1+ y)) grid)) 2)
+             ((not (gethash (cons (1- x) y) grid)) 3)
+             ((not (gethash (cons (1+ x) y) grid)) 4)))
+      (when (null direction)
+        ;;(format t "Backtracking...~%")
+        (when (equal coord (cons 0 0))
+          (return grid))
+        (setf coord (gethash coord from))
+        (next-iteration))
+      (for new-coord =
+           (case direction
+             (1 (cons x (1- y)))
+             (2 (cons x (1+ y)))
+             (3 (cons (1- x) y))
+             (4 (cons (1+ x) y))))
+      (setf (gethash new-coord from) coord)
+      (multiple-value-bind (new-ptr code) (interpret program direction ptr)
+        (setf ptr new-ptr)
+        (case code
+          (0 (setf (gethash new-coord grid) 'wall))
+          (1 (setf (gethash new-coord grid) 'floor))
+          (2 (setf (gethash new-coord grid) 'destination))))
+      (when (not (eq (gethash new-coord grid) 'wall))
+        (setf coord new-coord)))))
+
 ;; # PART 2:
 
 (defun day15-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
   (let* ((program (parse-computer-registers input-elements))
          (*relative-base* 0)
-         (coords (list (cons 0 (cons -16 13))))
+         (coords (list (cons 0 (cons -16 14))))
          (seen (make-hash-table :test #'equal)))
     (multiple-value-bind (grid from destination) (discover-map program)
+      (print-grid grid)
       (iter
         (for (steps . coord) = (pop coords))
-        (format t "coord: ~a~%" coord)
+        ;;(format t "coord: ~a~%" coord)
         (setf (gethash coord seen) t)
         (destructuring-bind (x . y) coord
           (setf coords
@@ -216,10 +232,38 @@
                                            (cons (1+ steps) new-coord)
                                            nil)))))))
         (maximizing steps into most-steps)
-        ;(format t "coords: ~a~%" coords)
+        ;;(format t "coords: ~a~%" coords)
         (when (null coords)
           (return most-steps))))))
 
+(defun print-grid (grid)
+  (multiple-value-bind (min-x max-x min-y max-y) (iter
+                                                   (for (key value) in-hashtable grid)
+                                                   (for (x . y) = key)
+                                                   (minimizing x into min-x)
+                                                   (maximizing x into max-x)
+                                                   (minimizing y into min-y)
+                                                   (maximizing y into max-y)
+                                                   (finally (return (values min-x max-x min-y max-y))))
+    (format t "~%")
+    (iter
+      (for y from min-y to max-y)
+      (iter
+        (for x from min-x to max-x)
+        (when (and (eq x 0)
+                   (eq y 0))
+          (format t "O")
+          (next-iteration))
+        (for tile = (gethash (cons x y) grid))
+        (format t "~a"
+                (cond
+                  ((eq tile 'wall)        #\#)
+                  ((eq tile 'destination) #\X)
+                  ((eq tile 'floor)       #\_)
+                  (t                      #\#))))
+      (format t "~%"))))
+
+;; Wrong: 391
 ;; Wrong: 499
 ;; Wrong: 500
 ;; Wrong: 501
