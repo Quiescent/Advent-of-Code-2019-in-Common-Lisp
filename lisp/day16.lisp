@@ -30,9 +30,9 @@
     (iter
       (for i from 0 below 100)
       (n-one-phase digits))
-    (subseq digits 0 8)
-    ;(apply #'concatenate 'string (map 'list #'identity ))
-    ))
+    (read-from-string
+     (apply #'concatenate 'string (map 'list (lambda (c) (format nil "~a" c))
+                                       (subseq digits 0 8))))))
 
 ;; Wrong: 58244815
 
@@ -45,7 +45,6 @@
                    (for j from 0 below (length digits))
                    (for digit in-vector digits)
                    (for pos = (mod (floor (1+ j) (1+ i)) 4))
-                   ;;(format t "pos: ~a, expr: ~a * ~a~%" pos (aref pattern pos) digit)
                    (summing (* digit (aref pattern pos)))))
             10)
        result-type vector))))
@@ -57,14 +56,12 @@
   (let* ((digits-seed (map 'vector (lambda (c) (read-from-string (format nil "~a" c))) input-elements))
          (digits (apply #'concatenate 'vector (iter (for i from 0 below 10000) (collecting digits-seed))))
          (offset (read-from-string (map 'string (lambda (c) (aref (format nil "~a" c) 0)) (subseq digits-seed 0 7)))))
-    (format t "offset: ~a~%" offset)
-    (format t "Len: ~a~%" (length digits))
     (iter
       (for i from 0 below 100)
-      (n-one-phase-offset digits offset)
-      (format t "[~a] Phase complete! (~a)~%" i (subseq digits offset (+ offset 8))))
-    ;;(apply #'concatenate 'string (map 'list #'identity ))
-    ))
+      (n-one-phase-offset digits offset))
+    (read-from-string
+     (apply #'concatenate 'string (map 'list (lambda (c) (format nil "~a" c))
+                                       (subseq digits offset (+ offset 8)))))))
 
 (defun n-one-phase (digits)
   (let ((pattern (map 'vector #'identity '(0 1 0 -1))))
@@ -74,7 +71,6 @@
                              (for j from 0 below (length digits))
                              (for digit in-vector digits)
                              (for pos = (mod (floor (1+ j) (1+ i)) 4))
-                             ;;(format t "pos: ~a, expr: ~a * ~a~%" pos (aref pattern pos) digit)
                              (summing (* digit (aref pattern pos)))))
                       10))
       (setf (aref digits i) res))))
