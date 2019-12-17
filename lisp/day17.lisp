@@ -109,39 +109,81 @@
 
 (defun day17-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
-  (let* ((program (parse-computer-registers input-elements))
+  (let* ((discover-program (parse-computer-registers input-elements))
+         (control-program  (copy-seq discover-program))
          (*relative-base* 0)
          (ptr  0))
-    (multiple-value-bind (grid new-ptr) (discover-map program ptr)
-      (let* ((route (find-route grid)))
-        (find-finish route)
-        ;; (find-if (lambda (routine-group) (can-get-to-finish routine-group route))
-        ;;          routine-groups)
-        ))))
+    (multiple-value-bind (grid new-ptr) (discover-map discover-program ptr)
+      (let* ((route      (find-route grid))
+             (vm-program (reverse (car (find-finish route)))))
+        (destructuring-bind (functions . encoded-program) (program-and-functions vm-program)
+          (setf (aref control-program 0) 2)
+          (setf ptr 0)
+          (iter
+            (for code in encoded-program)
+            (for ascii-code = (case code
+                                (0 (char-code #\A))
+                                (1 (char-code #\B))
+                                (2 (char-code #\C))))
+            (multiple-value-bind (new-ptr output halted)
+                (interpret control-program ascii-code ptr)
+              (setf ptr new-ptr))
+            (multiple-value-bind (new-ptr output halted)
+                (interpret control-program (char-code #\,) ptr)
+              (setf ptr new-ptr)))
+          (multiple-value-bind (new-ptr output halted)
+              (interpret control-program (char-code #\newline) ptr))
+          (iter
+            (for (x . routine) in functions)
+            (for chars = (encode-routine routine))
+            (iter
+              (for char in-string chars)
+              (multiple-value-bind (new-ptr output halted)
+                  (interpret control-program char ptr)
+                (setf ptr new-ptr))
+              (multiple-value-bind (new-ptr output halted)
+                  (interpret control-program (char-code #\newline) ptr))))
+          (multiple-value-bind (new-ptr output halted)
+              (interpret control-program #\n ptr)
+            output))))))
+
+;; Wrong: 46
+
+(defun grid-from-lines (lines)
+  (iter
+    (with grid = (make-hash-table :test #'equal))
+    (for y from 0)
+    (for line in lines)
+    (iter
+      (for x from 0)
+      (for char in-string line)
+      (setf (gethash (cons x y) grid) char))
+    (finally (return grid))))
 
 (defun find-finish (route)
-  (labels ((travel (sub-route available taken)
-             (if (null sub-route)
-                 taken
-                 (let ((applicable (remove-if-not
-                                    (lambda (routine)
-                                      (and (>= (length sub-route) (length routine))
-                                           (search routine sub-route :end2 (length routine))))
-                                    available)))
-                   (format t "sub-route: ~a~%" (length sub-route))
-                   (append
-                    (iter
-                      (for applicable-routine in applicable)
-                      (for route-home = (travel (nthcdr (length applicable-routine) sub-route)
-                                                available
-                                                (cons applicable-routine taken)))
-                      (when route-home
-                        (collecting route-home)))
-                    (when (< (length available) 3)
-                      (iter
-                        (for routine in (find-single-routines-from sub-route))
-                        (travel sub-route (cons routine available) taken))))))))
-    (travel route nil nil)))
+  (let (routes)
+   (labels ((travel (sub-route available taken)
+              (if (null sub-route)
+                  taken
+                  (let ((applicable (remove-if-not
+                                     (lambda (routine)
+                                       (and (>= (length sub-route) (length routine))
+                                            (search routine sub-route :end2 (length routine))))
+                                     available)))
+                    (append
+                     (iter
+                       (for applicable-routine in applicable)
+                       (for route-home = (travel (nthcdr (length applicable-routine) sub-route)
+                                                 available
+                                                 (cons applicable-routine taken)))
+                       (when route-home
+                         (push route-home routes)))
+                     (when (< (length available) 3)
+                       (iter
+                         (for routine in (find-single-routines-from sub-route))
+                         (travel sub-route (cons routine available) taken))))))))
+     (travel route nil nil)
+     (remove-duplicates routes :test #'equal))))
 
 (defun can-get-to-finish (routine-group route)
   (if (null route)
@@ -215,6 +257,24 @@
 (defun char-len (symbol)
   (if (symbolp symbol) 1 (length (format nil "~a" symbol))))
 
+(defun program-and-functions (route)
+  (let ((functions        (make-hash-table :test #'equal))
+        (current-function 0)
+        program)
+    (iter
+      (for routine in route)
+      (for symbol =
+           (if (null (gethash routine functions))
+               (progn
+                 (setf (gethash routine functions) current-function)
+                 (incf current-function)
+                 (1- current-function))
+               (gethash routine functions)))
+      (push symbol program)
+      (finally (return (cons (iter (for (key value) in-hashtable functions)
+                                   (collecting (cons value key)))
+                             (reverse program)))))))
+
 (defun find-route (grid)
   (iter
     (with route)
@@ -241,7 +301,7 @@
 (defun compress (xs)
   (labels ((iter (ys count)
                  (if (null ys)
-                     nil
+                     (list count)
                      (case (car ys)
                        (right (cons count (cons 'right (iter (cdr ys) 0))))
                        (left  (cons count (cons 'left (iter (cdr ys) 0))))
@@ -325,20 +385,32 @@
 ;; (progn
 ;;   (print "********** SCRATCH **********
 ;; ")
-;;   (let ((input-1 '())
-;;         (expected-1 '())
-;;         (input-2 '())
+;;   (let ((input-2 '("#######...#####"
+;;                    "#.....#...#...#"
+;;                    "#.....#...#...#"
+;;                    "......#...#...#"
+;;                    "......#...###.#"
+;;                    "......#.....#.#"
+;;                    "^########...#.#"
+;;                    "......#.#...#.#"
+;;                    "......#########"
+;;                    "........#...#.."
+;;                    "....#########.."
+;;                    "....#...#......"
+;;                    "....#...#......"
+;;                    "....#...#......"
+;;                    "....#####......"))
 ;;         (expected-2 '()))
-;;     (format t "
-;; Part 1:
-;; Expected: ~s
-;;      Got: ~s
-;; " expected-1 (day17-part-1 input-1))
 ;;     (format t "
 ;; Part 2:
 ;; Expected: ~s
 ;;      Got: ~s
-;; " expected-2 (day17-part-2 input-2))))
+;; " expected-2 (let* ((grid (grid-from-lines input-2))
+;;                     (route (find-route grid))
+;;                     )
+;;                (print-grid (grid-from-lines input-2))
+;;                (encode-routine route)
+;;                (find-finish route)))))
 
 ;; Run the solution:
 
