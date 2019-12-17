@@ -113,11 +113,35 @@
          (*relative-base* 0)
          (ptr  0))
     (multiple-value-bind (grid new-ptr) (discover-map program ptr)
-      (let* ((route          (find-route grid))
-             (routine-groups (find-all-routines route)))
-        (print routine-groups)
-        (find-if (lambda (routine-group) (can-get-to-finish routine-group route))
-                 routine-groups)))))
+      (let* ((route (find-route grid)))
+        (find-finish route)
+        ;; (find-if (lambda (routine-group) (can-get-to-finish routine-group route))
+        ;;          routine-groups)
+        ))))
+
+(defun find-finish (route)
+  (labels ((travel (sub-route available taken)
+             (if (null sub-route)
+                 taken
+                 (let ((applicable (remove-if-not
+                                    (lambda (routine)
+                                      (and (>= (length sub-route) (length routine))
+                                           (search routine sub-route :end2 (length routine))))
+                                    available)))
+                   (format t "sub-route: ~a~%" (length sub-route))
+                   (append
+                    (iter
+                      (for applicable-routine in applicable)
+                      (for route-home = (travel (nthcdr (length applicable-routine) sub-route)
+                                                available
+                                                (cons applicable-routine taken)))
+                      (when route-home
+                        (collecting route-home)))
+                    (when (< (length available) 3)
+                      (iter
+                        (for routine in (find-single-routines-from sub-route))
+                        (travel sub-route (cons routine available) taken))))))))
+    (travel route nil nil)))
 
 (defun can-get-to-finish (routine-group route)
   (if (null route)
@@ -135,32 +159,26 @@
         (finally (return nil)))))
 
 (defun find-all-routines (route)
-  (labels ((iter-routes (ys c routines)
+  (let ((all-possible-routines
+         (remove-duplicates (iter
+                              (for xs on route)
+                              (appending (find-single-routines-from xs)))
+                            :test #'equal)))
+    (remove-duplicates (combinations-3 all-possible-routines)
+                       :test #'equal)))
+
+(defun combinations-3 (xs)
+  (labels ((comb (ys c)
              (cond
-               ((null ys) (list nil))
-               ((eq c 3)  (list nil))
+               ((null ys) nil)
+               ((eq 3 c)  (list nil))
                (t
                 (iter
-                  (with routes)
-                  (for sub-route in (find-single-routines-from ys))
-                  (iter
-                    (for other-routines in (iter-routes (nthcdr (length sub-route) ys)
-                                                        (1+ c)
-                                                        (cons sub-route routines)))
-                    ;; (format t "other-routines: ~a~%" other-routines)
-                    (push (cons sub-route other-routines) routes))
-                  (iter
-                    (for available-routine in routines)
-                    (when (search available-routine ys :end2 (length available-routine))
-                      (format t "skipped ahead")
-                      (iter
-                        (for other-routines in (iter-routes (nthcdr (length available-routine) ys)
-                                                            c
-                                                            routines))
-                        (push (cons sub-route other-routines) routes))))
-                  (finally (return routes)))))))
-    (remove-if-not (lambda (routines) (eq 3 (length routines)))
-                   (iter-routes route 0 nil))))
+                  (with result)
+                  (for rest in (comb (cdr ys) (1+ c)))
+                  (push (cons (car ys) rest) result)
+                  (finally (return (append result (comb (cdr ys) c)))))))))
+    (comb xs 0)))
 
 (defun find-single-routines-from (xs)
   (labels ((iter (ys len acc)
