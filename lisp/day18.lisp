@@ -53,16 +53,12 @@
         (format t "Found: ~a~%" keys-found)
         ;; (format t "Starting at: ~a~%" start)
         ;; (format t "Distance so far: ~a~%" distance)
-        (let* ((results         (keys-in-reach grid start keys doors-passable))
-               (doors-from-here (mapcar #'char-downcase (doors-in-reach grid start keys doors doors-passable)))
-               (destinations    (iter (for (key value) in-hashtable results)
-                                      (if (member key doors-from-here)
-                                          (collecting (cons key value) into opens-doors)
-                                          (collecting (cons key value) into doesnt-open-door))
-                                      (finally (return (append opens-doors doesnt-open-door))))))
-          ;(format t "Ordered results: ~a~%" destinations)
+        (let* ((results (keys-in-reach grid start keys doors-passable))
+               (sorted  (sort results #'< :key (lambda (result) (+ (+ distance (cadr result))
+                                                              (- (length keys) (length keys-found)))))))
+          (format t "Ordered results: ~a~%" sorted)
           (iter
-            (for (key . value) in destinations)
+            (for (key . value) in sorted)
             (when (not (member key keys-found))
               (shortest-path grid
                              keys
@@ -78,11 +74,86 @@
     (when (eq value #\@)
       (return key))))
 
+(defun find-dependencies (grid start all-keys all-doors)
+  (let ((seen  (make-hash-table :test #'equal))
+        (queue (list (list nil nil start)))
+        dependencies
+        on-the-way)
+    (setf (gethash start seen) t)
+    (iter
+      (for i from 0 below 1000)
+      (while queue)
+      (format t "Queue: ~a~%" queue)
+      (for (dependency on-the-way (x . y)) = (pop queue))
+      (for new-this-round = nil)
+      (for north = (cons x (1- y)))
+      (for north-tile = (gethash north grid))
+      (when (not (gethash north seen))
+        (setf (gethash north seen) t)
+        (cond
+          ((member north-tile '(#\. #\@))
+           (push (list dependency on-the-way north) new-this-round))
+          ((member north-tile all-keys)
+           (progn
+             (push (cons on-the-way north-tile) on-the-way)
+             (push (list dependency north-tile north) new-this-round)))
+          ((member north-tile all-doors)
+           (progn
+             (push (cons dependency north-tile) dependencies)
+             (push (list north-tile on-the-way north) new-this-round)))))
+      (for south = (cons x (1+ y)))
+      (for south-tile = (gethash south grid))
+      (when (not (gethash south seen))
+        (setf (gethash south seen) t)
+        (cond
+          ((member south-tile '(#\. #\@))
+           (push (list dependency on-the-way south) new-this-round))
+          ((member south-tile all-keys)
+           (progn
+             (push (cons on-the-way south-tile) on-the-way)
+             (push (list dependency south-tile south) new-this-round)))
+          ((member south-tile all-doors)
+           (progn
+             (push (cons dependency south-tile) dependencies)
+             (push (list south-tile on-the-way south) new-this-round)))))
+      (for east = (cons (1+ x) y))
+      (for east-tile = (gethash east grid))
+      (when (not (gethash east seen))
+        (setf (gethash east seen) t)
+        (cond
+          ((member east-tile '(#\. #\@))
+           (push (list dependency on-the-way east) new-this-round))
+          ((member east-tile all-keys)
+           (progn
+             (push (cons on-the-way east-tile) on-the-way)
+             (push (list dependency east-tile east) new-this-round)))
+          ((member east-tile all-doors)
+           (progn
+             (push (cons dependency east-tile) dependencies)
+             (push (list east-tile on-the-way east) new-this-round)))))
+      (for west = (cons (1- x) y))
+      (for west-tile = (gethash west grid))
+      (when (not (gethash west seen))
+        (setf (gethash west seen) t)
+        (cond
+          ((member west-tile '(#\. #\@))
+           (push (list dependency on-the-way west) new-this-round))
+          ((member west-tile all-keys)
+           (progn
+             (push (cons on-the-way west-tile) on-the-way)
+             (push (list dependency west-tile west) new-this-round)))
+          ((member west-tile all-doors)
+           (progn
+             (push (cons dependency west-tile) dependencies)
+             (push (list west-tile on-the-way west) new-this-round)))))
+      (setf queue (nconc queue new-this-round)))
+    (cons dependencies on-the-way)))
+
 (defun keys-in-reach (grid start all-keys doors-passable)
   (let (;(from (make-hash-table :test #'equal))
-        (keys (make-hash-table :test #'equal))
         (seen (make-hash-table :test #'equal))
-        (queue (list (cons 0 start))))
+        (queue (list (cons 0 start)))
+        keys)
     (setf (gethash start seen) t)
     (iter
       (for i from 0 below 10000)
@@ -93,8 +164,7 @@
       (for north-tile = (gethash north grid))
       (when (and (member north-tile all-keys)
                  (not (gethash north seen)))
-        (setf (gethash north-tile keys)
-              (cons (1+ steps) north))
+        (push (cons north-tile (cons (1+ steps) north)) keys)
         ;;(setf (gethash north from) (cons x y))
         (setf (gethash north seen) t)
         (push (cons (1+ steps) north) new-this-round))
@@ -109,8 +179,7 @@
       (for south-tile = (gethash south grid))
       (when (and (member south-tile all-keys)
                  (not (gethash south seen)))
-        (setf (gethash south-tile keys)
-              (cons (1+ steps) south))
+        (push (cons south-tile (cons (1+ steps) south)) keys)
         ;;(setf (gethash south from) (cons x y))
         (setf (gethash south seen) t)
         (push (cons (1+ steps) south) new-this-round))
@@ -125,8 +194,7 @@
       (for east-tile = (gethash east grid))
       (when (and (member east-tile all-keys)
                  (not (gethash east seen)))
-        (setf (gethash east-tile keys)
-              (cons (1+ steps) east))
+        (push (cons east-tile (cons (1+ steps) east)) keys)
         ;;(setf (gethash east from) (cons x y))
         (setf (gethash east seen) t)
         (push (cons (1+ steps) east) new-this-round))
@@ -141,8 +209,7 @@
       (for west-tile = (gethash west grid))
       (when (and (member west-tile all-keys)
                  (not (gethash west seen)))
-        (setf (gethash west-tile keys)
-              (cons (1+ steps) west))
+        (push (cons west-tile (cons (1+ steps) west)) keys)
         ;;(setf (gethash west from) (cons x y))
         (setf (gethash west seen) t)
         (push (cons (1+ steps) west) new-this-round))
@@ -294,12 +361,12 @@
           ;;   "#.######################"
           ;;   "#.....@.a.B.c.d.A.e.F.g#"
           ;;   "########################")
-          ;; '("########################"
-          ;;   "#@..............ac.GI.b#"
-          ;;   "###d#e#f################"
-          ;;   "###A#B#C################"
-          ;;   "###g#h#i################"
-          ;;   "########################")
+          '("########################"
+            "#@..............ac.GI.b#"
+            "###d#e#f################"
+            "###A#B#C################"
+            "###g#h#i################"
+            "########################")
           )
         (expected-1 136)
         (input-2 '())
