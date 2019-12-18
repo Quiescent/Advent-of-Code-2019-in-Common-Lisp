@@ -105,7 +105,6 @@
         keys)
     (setf (gethash start seen) t)
     (iter
-      10000
       (while queue)
       (for (steps . (x . y)) = (pop queue))
       (for new-this-round = nil)
@@ -197,24 +196,26 @@
 
 (defun day18-part-2 (input-elements)
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
-  (let* ((y-dim  (length input-elements))
-         (x-dim  (length (car input-elements)))
-         (grid   (parse-map input-elements x-dim y-dim))
-         (keys   (keys-from-grid grid x-dim y-dim))
-         (starts (initial-starts grid x-dim y-dim)))
+  (let* ((y-dim        (length input-elements))
+         (x-dim        (length (car input-elements)))
+         (grid         (parse-map input-elements x-dim y-dim))
+         (keys         (keys-from-grid grid x-dim y-dim))
+         (starts       (initial-starts grid x-dim y-dim))
+         (all-searches (keys-and-requirements grid keys starts x-dim y-dim)))
     ;; (format t "~%")
     (print-map grid x-dim y-dim)
     ;; (format t "start: ~a~%" start)
     ;; (format t "keys: ~a~%" keys)
-    (shortest-path-2 grid keys starts)))
+    
+    (shortest-path-2 grid all-searches keys starts)))
 
-(defun shortest-path-2 (grid keys starts)
+(defun shortest-path-2 (grid all-searches keys starts)
   (let* ((best  most-positive-fixnum)
          (keys-len (length keys))
          (queue (list (list keys-len 0 (map 'vector #'identity starts) nil nil))))
     (iter
       (for i from 0 below 100000)
-      ;;(format t "Queue: ~a~%" queue)
+      ;(format t "Queue: ~a~%" queue)
       (while queue)
       (for (priority distance coords keys-found doors-passable) = (pop queue))
       (when (eq (length keys-found) keys-len)
@@ -227,12 +228,20 @@
       (iter
         (for coord in-vector coords)
         (for idx from 0)
-        (for results = (keys-in-reach grid coord keys-found keys doors-passable))
+        (for tile = (aref grid (cdr coord) (car coord)))
+        (for results = (keys-in-reach-2 all-searches
+                                        keys-found
+                                        (if (eq tile #\@) coord tile)
+                                        doors-passable))
         (when (not (null results))
           (iter
             (for (tile steps . new-coord) in results)
             (for new-coords = (copy-seq coords))
             (setf (aref new-coords idx) new-coord)
+            (for key = (list (+ steps (- keys-len (1+ (length keys-found))))
+                             (+ steps distance)
+                             (cons tile keys-found)
+                             (cons (char-upcase tile) doors-passable)))
             (push (list (+ steps (- keys-len (1+ (length keys-found))))
                         (+ steps distance)
                         new-coords
@@ -241,6 +250,73 @@
                   queue))))
       (setf queue (sort queue #'< :key #'car)))
     best))
+
+(defun keys-in-reach-2 (all-searches keys-found key doors-passable)
+  (iter
+    (for (destination requirements distance coord) in (gethash key all-searches))
+    (when (or (not (null (set-difference requirements doors-passable)))
+              (member destination keys-found))
+      (next-iteration))
+    (collecting (cons destination (cons distance coord)))))
+
+(defun find-key (grid key x-dim y-dim)
+  (iter outer
+    (for y from 0 below y-dim)
+    (iter
+      (for x from 0 below x-dim)
+      (when (eq (aref grid y x) key)
+        (return-from outer (cons x y))))))
+
+(defun keys-and-requirements (grid all-keys starts x-dim y-dim)
+  (let ((searches-from (make-hash-table :test #'equal)))
+    (iter
+      (for key in (append all-keys starts))
+      (for start = (if (consp key) key (find-key grid key x-dim y-dim)))
+      (for seen  = (make-hash-table :test #'equal))
+      (for queue = (list (list 0 start nil)))
+      (setf (gethash start seen) t)
+      (iter
+        (while queue)
+        (for (steps (x . y) doors-been-through) = (pop queue))
+        (for new-this-round = nil)
+        (labels ((push-tile (tile location)
+                   (when (and (member tile all-keys)
+                              (not (gethash location seen)))
+                     (push (cons tile (list doors-been-through (1+ steps) location))
+                           (gethash key searches-from))
+                     (setf (gethash location seen) t)
+                     (push (list (1+ steps) location doors-been-through) new-this-round))
+                   (when (and (not (or (eq #\. tile)
+                                       (eq #\@ tile)
+                                       (eq #\# tile)))
+                              (not (lower-case-p tile))
+                              (not (gethash location seen)))
+                     (setf (gethash location seen) t)
+                     (push (list (1+ steps) location (cons tile doors-been-through)) new-this-round))
+                   (when (and (or (eq #\. tile)
+                                  (eq #\@ tile))
+                              (not (gethash location seen)))
+                     (setf (gethash location seen) t)
+                     (push (list (1+ steps) location doors-been-through) new-this-round))))
+
+          (for north = (cons x (1- y)))
+          (for north-tile = (aref grid (1- y) x))
+          (push-tile north-tile north)
+
+          (for south = (cons x (1+ y)))
+          (for south-tile = (aref grid (1+ y) x))
+          (push-tile south-tile south)
+          
+          (for east = (cons (1+ x) y))
+          (for east-tile = (aref grid y (1+ x)))
+          (push-tile east-tile east)
+          
+          (for west = (cons (1- x) y))
+          (for west-tile = (aref grid y (1- x)))
+          (push-tile west-tile west))
+
+        (setf queue (nconc queue new-this-round))))
+    searches-from))
 
 ;; Scratch area:
 
