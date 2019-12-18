@@ -7,11 +7,15 @@
 
 (ql:quickload "iterate")
 (ql:quickload "cl-ppcre")
+(ql:quickload "cl-heap")
 
 (load "read-file.lisp")
 (load "graph.lisp")
 (load "debug.lisp")
 (load "hash.lisp")
+
+(require :sb-sprof)
+(declaim (optimize speed))
 
 (defpackage :day18
   (:use :common-lisp)
@@ -31,12 +35,13 @@
          (x-dim (length (car input-elements)))
          (grid  (parse-map input-elements x-dim y-dim))
          (keys  (keys-from-grid grid x-dim y-dim))
-         (start (initial-start grid x-dim y-dim)))
+         (start (initial-start grid x-dim y-dim))
+         (all-searches (keys-and-requirements grid keys (list start) x-dim y-dim)))
     ;; (format t "~%")
     ;; (print-map grid x-dim y-dim)
     ;; (format t "start: ~a~%" start)
     ;; (format t "keys: ~a~%" keys)
-    (shortest-path grid keys start)))
+    (shortest-path grid all-searches keys start)))
 
 (defun print-map (grid x-dim y-dim)
   (iter
@@ -51,7 +56,7 @@
 ;; Wrong: 6590
 ;; Correct: 6286
 
-(defun shortest-path (grid keys start)
+(defun shortest-path (grid all-searches keys start)
   (let* ((best  most-positive-fixnum)
          (keys-len (length keys))
          (queue (list (list keys-len 0 start nil nil))))
@@ -68,7 +73,12 @@
       (when (> distance best)
         (next-iteration))
       (setf queue (sort queue #'< :key #'car))
-      (for results = (keys-in-reach grid coord keys-found keys doors-passable))
+      ;;(for results = (keys-in-reach grid coord keys-found keys doors-passable))
+      (for tile = (aref grid (cdr coord) (car coord)))
+      (for results = (keys-in-reach-2 all-searches
+                                      keys-found
+                                      (if (eq tile #\@) coord tile)
+                                      doors-passable))
       (iter
         (for (tile steps . coord) in results)
         (push (list (+ steps (- keys-len (1+ (length keys-found))))
@@ -212,12 +222,15 @@
 (defun shortest-path-2 (grid all-searches keys starts)
   (let* ((best  most-positive-fixnum)
          (keys-len (length keys))
-         (queue (list (list keys-len 0 (map 'vector #'identity starts) nil nil))))
+         (queue (make-instance 'cl-heap:priority-queue)))
+    (cl-heap:enqueue queue (list 0 (map 'vector #'identity starts) nil nil) keys-len)
     (iter
-      (for i from 0 below 100000)
-      ;(format t "Queue: ~a~%" queue)
-      (while queue)
-      (for (priority distance coords keys-found doors-passable) = (pop queue))
+      (for i from 0 below 1000000)
+      ;;(format t "Queue: ~a~%" queue)
+      (for elem = (cl-heap:dequeue queue))
+      (while elem)
+      (for (distance coords keys-found doors-passable) = elem)
+      (format t "Found: ~a~%" keys-found)
       (when (eq (length keys-found) keys-len)
         (when (< distance best)
           (format t "[~a] ~a~%" distance keys-found)
@@ -238,17 +251,12 @@
             (for (tile steps . new-coord) in results)
             (for new-coords = (copy-seq coords))
             (setf (aref new-coords idx) new-coord)
-            (for key = (list (+ steps (- keys-len (1+ (length keys-found))))
-                             (+ steps distance)
-                             (cons tile keys-found)
-                             (cons (char-upcase tile) doors-passable)))
-            (push (list (+ steps (- keys-len (1+ (length keys-found))))
-                        (+ steps distance)
-                        new-coords
-                        (cons tile keys-found)
-                        (cons (char-upcase tile) doors-passable))
-                  queue))))
-      (setf queue (sort queue #'< :key #'car)))
+            (cl-heap:enqueue queue
+                             (list (+ steps distance)
+                                   new-coords
+                                   (cons tile keys-found)
+                                   (cons (char-upcase tile) doors-passable))
+                             (+ steps (- keys-len (1+ (length keys-found)))))))))
     best))
 
 (defun keys-in-reach-2 (all-searches keys-found key doors-passable)
@@ -320,61 +328,61 @@
 
 ;; Scratch area:
 
-(progn
-  (print "********** SCRATCH **********
-")
-  (let ((input-1 ;; '("#########"
-                 ;;   "#b.A.@.a#"
-                 ;;   "#########")
-         ;; '("#################"
-         ;;   "#i.G..c...e..H.p#"
-         ;;   "########.########"
-         ;;   "#j.A..b...f..D.o#"
-         ;;   "########@########"
-         ;;   "#k.E..a...g..B.n#"
-         ;;   "########.########"
-         ;;   "#l.F..d...h..C.m#"
-         ;;   "#################")
-          ;; '("########################"
-          ;;   "#...............b.C.D.f#"
-          ;;   "#.######################"
-          ;;   "#.....@.a.B.c.d.A.e.F.g#"
-          ;;   "########################")
-          ;; '("########################"
-          ;;   "#@..............ac.GI.b#"
-          ;;   "###d#e#f################"
-          ;;   "###A#B#C################"
-          ;;   "###g#h#i################"
-          ;;   "########################")
-          )
-        (expected-1 136)
-        (input-2 ;; '("#######"
-                 ;;   "#a.#Cd#"
-                 ;;   "##@#@##"
-                 ;;   "#######"
-                 ;;   "##@#@##"
-                 ;;   "#cB#Ab#"
-                 ;;   "#######")
-         '("#############"
-           "#g#f.D#..h#l#"
-           "#F###e#E###.#"
-           "#dCba@#@BcIJ#"
-           "#############"
-           "#nK.L@#@G...#"
-           "#M###N#H###.#"
-           "#o#m..#i#jk.#"
-           "#############"))
-        (expected-2 8))
-    (format t "
-Part 1:
-Expected: ~s
-     Got: ~s
-" expected-1 (day18-part-1 input-1))
-    (format t "
-Part 2:
-Expected: ~s
-     Got: ~s
-" expected-2 (day18-part-2 input-2))))
+;; (progn
+;;   (print "********** SCRATCH **********
+;; ")
+;;   (let ((input-1 ;; '("#########"
+;;                  ;;   "#b.A.@.a#"
+;;                  ;;   "#########")
+;;          ;; '("#################"
+;;          ;;   "#i.G..c...e..H.p#"
+;;          ;;   "########.########"
+;;          ;;   "#j.A..b...f..D.o#"
+;;          ;;   "########@########"
+;;          ;;   "#k.E..a...g..B.n#"
+;;          ;;   "########.########"
+;;          ;;   "#l.F..d...h..C.m#"
+;;          ;;   "#################")
+;;           ;; '("########################"
+;;           ;;   "#...............b.C.D.f#"
+;;           ;;   "#.######################"
+;;           ;;   "#.....@.a.B.c.d.A.e.F.g#"
+;;           ;;   "########################")
+;;           ;; '("########################"
+;;           ;;   "#@..............ac.GI.b#"
+;;           ;;   "###d#e#f################"
+;;           ;;   "###A#B#C################"
+;;           ;;   "###g#h#i################"
+;;           ;;   "########################")
+;;           )
+;;         (expected-1 136)
+;;         (input-2 ;; '("#######"
+;;                  ;;   "#a.#Cd#"
+;;                  ;;   "##@#@##"
+;;                  ;;   "#######"
+;;                  ;;   "##@#@##"
+;;                  ;;   "#cB#Ab#"
+;;                  ;;   "#######")
+;;          '("#############"
+;;            "#g#f.D#..h#l#"
+;;            "#F###e#E###.#"
+;;            "#dCba@#@BcIJ#"
+;;            "#############"
+;;            "#nK.L@#@G...#"
+;;            "#M###N#H###.#"
+;;            "#o#m..#i#jk.#"
+;;            "#############"))
+;;         (expected-2 8))
+;; ;;     (format t "
+;; ;; Part 1:
+;; ;; Expected: ~s
+;; ;;      Got: ~s
+;; ;; " expected-1 (day18-part-1 input-1))
+;;     (format t "
+;; Part 2:
+;; Expected: ~s
+;;      Got: ~s
+;; " expected-2 (day18-part-2 input-2))))
 
 ;; Run the solution:
 
@@ -389,4 +397,11 @@ Expected: ~s
 ;; " (day18-part-1 input-1))
     (format t "
 Part 2: ~s
-" (day18-part-2 input-2))))
+" (day18-part-2 input-2))
+    ))
+
+;; (let ((input-2 (file-lines "day18-part-2")))
+;;   (sb-sprof:with-profiling (:max-samples 1000
+;;                             :report :flat
+;;                             :loop t)
+;;     (day18-part-2 input-2)))
