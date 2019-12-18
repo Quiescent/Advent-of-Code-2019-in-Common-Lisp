@@ -219,18 +219,20 @@
     
     (shortest-path-2 grid all-searches keys starts)))
 
+;; Too high:  2216
+
 (defun shortest-path-2 (grid all-searches keys starts)
   (let* ((best  most-positive-fixnum)
          (keys-len (length keys))
          (queue (make-instance 'cl-heap:priority-queue)))
-    (cl-heap:enqueue queue (list 0 (map 'vector #'identity starts) nil nil) keys-len)
+    (cl-heap:enqueue queue (list 0 (map 'vector #'identity starts) nil nil) (* 100 keys-len))
     (iter
       (for i from 0 below 1000000)
       ;;(format t "Queue: ~a~%" queue)
       (for elem = (cl-heap:dequeue queue))
       (while elem)
       (for (distance coords keys-found doors-passable) = elem)
-      (format t "Found: ~a~%" keys-found)
+      ;; (format t "Found: ~a~%" keys-found)
       (when (eq (length keys-found) keys-len)
         (when (< distance best)
           (format t "[~a] ~a~%" distance keys-found)
@@ -256,7 +258,7 @@
                                    new-coords
                                    (cons tile keys-found)
                                    (cons (char-upcase tile) doors-passable))
-                             (+ steps (- keys-len (1+ (length keys-found)))))))))
+                             (+ steps (* 100 (- keys-len (1+ (length keys-found))))))))))
     best))
 
 (defun keys-in-reach-2 (all-searches keys-found key doors-passable)
