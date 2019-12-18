@@ -219,7 +219,8 @@
     
     (shortest-path-2 grid all-searches keys starts)))
 
-;; Too high:  2216
+;; Too high: 2216
+;; Correct: 2140
 
 (defun shortest-path-2 (grid all-searches keys starts)
   (let* ((best  most-positive-fixnum)
@@ -227,7 +228,7 @@
          (queue (make-instance 'cl-heap:priority-queue)))
     (cl-heap:enqueue queue (list 0 (map 'vector #'identity starts) nil nil) (* 100 keys-len))
     (iter
-      (for i from 0 below 1000000)
+      (for i from 0 below 1000000000)
       ;;(format t "Queue: ~a~%" queue)
       (for elem = (cl-heap:dequeue queue))
       (while elem)
@@ -248,6 +249,7 @@
                                         keys-found
                                         (if (eq tile #\@) coord tile)
                                         doors-passable))
+        ;; (for results = (keys-in-reach grid coord keys-found keys doors-passable))
         (when (not (null results))
           (iter
             (for (tile steps . new-coord) in results)
@@ -330,61 +332,61 @@
 
 ;; Scratch area:
 
-;; (progn
-;;   (print "********** SCRATCH **********
-;; ")
-;;   (let ((input-1 ;; '("#########"
-;;                  ;;   "#b.A.@.a#"
-;;                  ;;   "#########")
-;;          ;; '("#################"
-;;          ;;   "#i.G..c...e..H.p#"
-;;          ;;   "########.########"
-;;          ;;   "#j.A..b...f..D.o#"
-;;          ;;   "########@########"
-;;          ;;   "#k.E..a...g..B.n#"
-;;          ;;   "########.########"
-;;          ;;   "#l.F..d...h..C.m#"
-;;          ;;   "#################")
-;;           ;; '("########################"
-;;           ;;   "#...............b.C.D.f#"
-;;           ;;   "#.######################"
-;;           ;;   "#.....@.a.B.c.d.A.e.F.g#"
-;;           ;;   "########################")
-;;           ;; '("########################"
-;;           ;;   "#@..............ac.GI.b#"
-;;           ;;   "###d#e#f################"
-;;           ;;   "###A#B#C################"
-;;           ;;   "###g#h#i################"
-;;           ;;   "########################")
-;;           )
-;;         (expected-1 136)
-;;         (input-2 ;; '("#######"
-;;                  ;;   "#a.#Cd#"
-;;                  ;;   "##@#@##"
-;;                  ;;   "#######"
-;;                  ;;   "##@#@##"
-;;                  ;;   "#cB#Ab#"
-;;                  ;;   "#######")
-;;          '("#############"
-;;            "#g#f.D#..h#l#"
-;;            "#F###e#E###.#"
-;;            "#dCba@#@BcIJ#"
-;;            "#############"
-;;            "#nK.L@#@G...#"
-;;            "#M###N#H###.#"
-;;            "#o#m..#i#jk.#"
-;;            "#############"))
-;;         (expected-2 8))
-;; ;;     (format t "
-;; ;; Part 1:
-;; ;; Expected: ~s
-;; ;;      Got: ~s
-;; ;; " expected-1 (day18-part-1 input-1))
+(progn
+  (print "********** SCRATCH **********
+")
+  (let ((input-1 ;; '("#########"
+                 ;;   "#b.A.@.a#"
+                 ;;   "#########")
+         ;; '("#################"
+         ;;   "#i.G..c...e..H.p#"
+         ;;   "########.########"
+         ;;   "#j.A..b...f..D.o#"
+         ;;   "########@########"
+         ;;   "#k.E..a...g..B.n#"
+         ;;   "########.########"
+         ;;   "#l.F..d...h..C.m#"
+         ;;   "#################")
+          ;; '("########################"
+          ;;   "#...............b.C.D.f#"
+          ;;   "#.######################"
+          ;;   "#.....@.a.B.c.d.A.e.F.g#"
+          ;;   "########################")
+          ;; '("########################"
+          ;;   "#@..............ac.GI.b#"
+          ;;   "###d#e#f################"
+          ;;   "###A#B#C################"
+          ;;   "###g#h#i################"
+          ;;   "########################")
+          )
+        (expected-1 136)
+        (input-2 ;; '("#######"
+                 ;;   "#a.#Cd#"
+                 ;;   "##@#@##"
+                 ;;   "#######"
+                 ;;   "##@#@##"
+                 ;;   "#cB#Ab#"
+                 ;;   "#######")
+         '("#############"
+           "#g#f.D#..h#l#"
+           "#F###e#E###.#"
+           "#dCba@#@BcIJ#"
+           "#############"
+           "#nK.L@#@G...#"
+           "#M###N#H###.#"
+           "#o#m..#i#jk.#"
+           "#############"))
+        (expected-2 8))
 ;;     (format t "
-;; Part 2:
+;; Part 1:
 ;; Expected: ~s
 ;;      Got: ~s
-;; " expected-2 (day18-part-2 input-2))))
+;; " expected-1 (day18-part-1 input-1))
+    (format t "
+Part 2:
+Expected: ~s
+     Got: ~s
+" expected-2 (day18-part-2 input-2))))
 
 ;; Run the solution:
 
