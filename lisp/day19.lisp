@@ -102,34 +102,46 @@
       ;; (4493, 3266) Found by running for a while...
       ;; (5825, 4234)
       ;; (6472, 4704)
+      ;; (32566, 23685)
       (let* ((x 12)
              (x-bottom 12)
-             x-bottoms
              (y 9)
              (y-bottom 10)
-             y-bottoms
+             bottoms
              (x-pattern (map 'vector #'identity '(1 1 2 1 1 2 1 2)))
-             (x-pattern-bottom (map 'vector #'identity '(1 1 1 1 1 1 1 1 1 2)))
              (x-len     (length x-pattern))
+             (x-pattern-bottom (map 'vector #'identity '(1 1 1 1 1 1 1 1 1 2)))
+             (x-bot-len (length x-pattern-bottom))
              ;; (y-pattern (map 'vector #'identity '(1))) (always go down 1...)
              )
+        ;;(32566, 23685)
+        ;; (671786, 488572)
+        ;; (works-at (1+ 671786) (1+ 488572))
         (iter
           (format t "Current: (~a, ~a)~%" x y)
+          (format t "Bottom: (~a, ~a)~%" x-bottom y-bottom)
           (with pos = 0)
-          (when (and (member (- x 100) x-bottoms)
-                     (member (- y 100) y-bottoms)
-                     ;(works-at (- x 100) (- y 100))
+          (with pos-bottom = 0)
+          (when (and (member (cons (- x 100) (- y 100))
+                             bottoms)
+                     ;;(works-at (- x 100) (- y 100))
                      )
             (format t "Closest point: (~a, ~a)~%" (- x 100) y)
             (return))
           (iter
             (for j from 0 below (aref x-pattern pos))
             (incf x))
-          (iter
-            (for ))
+          (incf y)
           (incf pos)
           (setf pos (mod pos x-len))
-          (incf y))))))
+          (iter
+            (for j from 0 below (aref x-pattern-bottom pos-bottom))
+            (incf x-bottom))
+          (incf y-bottom)
+          (incf pos-bottom)
+          (setf pos-bottom (mod pos-bottom x-bot-len))
+          (push (cons x-bottom y-bottom) bottoms))
+        ))))
 
 ;; Wrong: 9580860
 
