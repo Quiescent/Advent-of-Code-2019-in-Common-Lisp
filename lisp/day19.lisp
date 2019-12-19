@@ -99,36 +99,22 @@
                    (setf ptr new-ptr))
                  (multiple-value-bind (new-ptr output) (interpret program-copy y ptr)
                    (eq output 1)))))
-      (multiple-value-bind (bot-x bot-y top-x top-y) (bounds-of-beam input-elements)
-        (let* ((line-1  (/ (- bot-y 3) (- bot-x 4)))
-               (line-2  (/ (- top-y 3) (- top-x 4)))
-               (start-x (iter
-                          (for i from 0 below 100000000)
-                          (declare (type fixnum i))
-                          (when (>= (- (floor (* line-1 (- i 100)))
-                                       (floor (* line-2 i)))
-                                    100)
-                            (return i))))
-               (start-y (- (floor (* line-1 start-x)) 10))
-               ;; (top-y (iter
-               ;;          (for scanning-y from start-y downto (- start-y 1000))
-               ;;          (for top-y previous scanning-y)
-               ;;          (for in-beam = (works-at start-x scanning-y))
-               ;;          (format t "Works at: (~a, ~a) ~a~%" start-x scanning-y in-beam)
-               ;;          (when (not in-beam)
-               ;;            (return top-y))))
-               ;; (left-x (iter
-               ;;           (for scanning-x from start-x below (+ start-x 300))
-               ;;           (for left-x previous scanning-x)
-               ;;           (for in-beam = (works-at scanning-x start-y))
-               ;;           (format t "Works at: (~a, ~a) ~a~%" scanning-x start-y in-beam)
-               ;;           (when (not in-beam)
-               ;;             (return left-x))))
-               )
-          ;;(1330, 967)
-          (format t "(1330, 967): ~a~%" (works-at (- 1330 100) (- 967 100)))
-          ;;(format t "Found: (~a, ~a)~%" left-x top-y)
-          )))))
+      ;; (4493, 3266) Found by running for a while...
+      (let* ((x 4)
+             (y 3))
+        (iter
+          (format t "Current: (~a, ~a)~%" x y)
+          (when (and (> (- x 100) 0)
+                     (> (- y 100) 0)
+                     (works-at (- x 100) (- y 100)))
+            (format t "Closest point: (~a, ~a)~%" (- x 100) y)
+            (return))
+          (iter
+            (incf x)
+            (while (works-at x y)))
+          (iter
+            (incf y)
+            (while (not (works-at x y)))))))))
 
 ;; Wrong: 9580860
 
