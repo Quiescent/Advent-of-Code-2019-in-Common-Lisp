@@ -11,7 +11,7 @@
 (load "graph.lisp")
 (load "debug.lisp")
 (load "hash.lisp")
-(load "halting-computer.lisp")
+(load "hash-table-computer.lisp")
 
 (defpackage :day19
   (:use :common-lisp)
@@ -19,7 +19,7 @@
   (:use :graph)
   (:use :read-file)
   (:use :hash)
-  (:use :halting-computer)
+  (:use :hash-table-computer)
   (:use :iter))
 
 (in-package :day19)
@@ -31,8 +31,6 @@
 (defun day19-part-1 (input-elements)
   "Run my solution to part one of the problem on the input in INPUT-ELEMENTS."
   (let* ((program (parse-computer-registers input-elements))
-         (program-copy (parse-computer-registers input-elements))
-         (*relative-base* 0)
          (effected 0)
          (grid (make-hash-table :test #'equal)))
     (declare (type fixnum effected))
@@ -41,10 +39,8 @@
       (for y from 0 below 50)
       (declare (type fixnum y))
       (iter
-        (iter
-          (for i from 0 below 10000000)
-          (declare (type fixnum i))
-          (setf (aref program-copy i) (aref program i)))
+        (for program-copy = (copy-computer program))
+        (for *relative-base* = 0)
         (for ptr = 0)
         (declare (type fixnum ptr))
         (for x from 0 below 50)
@@ -83,68 +79,65 @@
 (defun day19-part-2 (program-input input-elements)
   "Run my solution to part two of the problem on the input in PROGRAM-INPUT and INPUT-ELEMENTS."
   (let* ((program (parse-computer-registers program-input))
-         (program-copy (parse-computer-registers program-input))
-         (*relative-base* 0)
-         (effected 0)
-         (grid (make-hash-table :test #'equal)))
-    (declare (type fixnum effected))
-    (declare (type fixnum *relative-base*))
+         (x 4)
+         (y 3))
     (labels ((works-at (x y)
-               (let ((ptr 0))
-                 (iter
-                   (for i from 0 below 10000000)
-                   (declare (type fixnum i))
-                   (setf (aref program-copy i) (aref program i)))
+               (let ((ptr 0)
+                     (*relative-base* 0)
+                     (program-copy (copy-computer program)))
                  (multiple-value-bind (new-ptr) (interpret program-copy x ptr)
                    (setf ptr new-ptr))
                  (multiple-value-bind (new-ptr output) (interpret program-copy y ptr)
                    (eq output 1)))))
+      ;; (6519, 4738) <- best with brute force
       ;; (4493, 3266) Found by running for a while...
       ;; (5825, 4234)
       ;; (6472, 4704)
       ;; (32566, 23685)
-      (let* ((x 12)
-             (x-bottom 12)
-             (y 9)
-             (y-bottom 10)
-             bottoms
-             (x-pattern (map 'vector #'identity '(1 1 2 1 1 2 1 2)))
-             (x-len     (length x-pattern))
-             (x-pattern-bottom (map 'vector #'identity '(1 1 1 1 1 1 1 1 1 2)))
-             (x-bot-len (length x-pattern-bottom))
-             ;; (y-pattern (map 'vector #'identity '(1))) (always go down 1...)
-             )
-        ;;(32566, 23685)
-        ;; (671786, 488572)
-        ;; (works-at (1+ 671786) (1+ 488572))
-        (iter
-          (format t "Current: (~a, ~a)~%" x y)
-          (format t "Bottom: (~a, ~a)~%" x-bottom y-bottom)
-          (with pos = 0)
-          (with pos-bottom = 0)
-          (when (and (member (cons (- x 100) (- y 100))
-                             bottoms)
-                     ;;(works-at (- x 100) (- y 100))
-                     )
-            (format t "Closest point: (~a, ~a)~%" (- x 100) y)
-            (return))
-          (iter
-            (for j from 0 below (aref x-pattern pos))
-            (incf x))
-          (incf y)
-          (incf pos)
-          (setf pos (mod pos x-len))
-          (iter
-            (for j from 0 below (aref x-pattern-bottom pos-bottom))
-            (incf x-bottom))
-          (incf y-bottom)
-          (incf pos-bottom)
-          (setf pos-bottom (mod pos-bottom x-bot-len))
-          (push (cons x-bottom y-bottom) bottoms))
-        ))))
+      ;; (2804664, 2038248)
+      ;; (works-at 3280 2384)
+      ;; (works-at (- 3280 10) (+ 2384 10))
+      (multiple-value-bind (result-x result-y)
+          (iter outer
+            (for i from 0 below 100000)
+            (format t "Current: (~a, ~a)~%" x y)
+            (when (and (> (- x 99) 0)
+                       (> (- y 99) 0)
+                       (works-at x y)
+                       (works-at (- x 99) (+ y 99)))
+              (format t "Closest point: (~a, ~a)~%" (- x 99) y)
+              (return-from outer (values x y)))
+            (iter
+              (incf x)
+              (when (and (> (- x 99) 0)
+                         (> (- y 99) 0)
+                         (works-at (- x 99) (+ y 99))
+                         (works-at x y))
+                (format t "Closest point: (~a, ~a)~%" (- x 99) y)
+                (return-from outer (values x y)))
+              (while (works-at x y)))
+            (iter
+              (incf y)
+              (while (not (works-at x y)))))
+        (let ((min-along-x (iter
+                             (for sliding-x from result-x downto (- result-x 99))
+                             (finding (cons sliding-x result-y) minimizing (sqrt (+ (* result-y result-y)
+                                                                                    (* sliding-x sliding-x))))))
+              (min-along-y (iter
+                             (for sliding-y from result-y to (+ result-y 99))
+                             (finding (cons result-x sliding-y) minimizing (sqrt (+ (* sliding-y sliding-y)
+                                                                                    (* result-x  result-x)))))))
+          (if (< (sqrt (+ (* (car min-along-x) (car min-along-x))
+                          (* (cdr min-along-x) (cdr min-along-x))))
+                 (sqrt (+ (* (car min-along-y) (car min-along-y))
+                          (* (cdr min-along-y) (cdr min-along-y)))))
+              (+ (* 10000 (car min-along-x)) (cdr min-along-x))
+              (+ (* 10000 (car min-along-y)) (cdr min-along-y))))))))
 
-;; Wrong: 9580860
-
+;; Wrong:    9580860
+;; Too high: 10590770
+;; Wrong:    10580769
+;; Wrong:    9580769
 ;; Wrong: 1058
 
 (defun bounds-of-beam (grid-lines)
@@ -195,9 +188,9 @@
 ")
   (let ((input-1 (file-lines "day19-part-1"))
         (input-2 (file-lines "day19-part-2")))
-    ;; (format t "
-;; Part 1: ~s
-;; " (day19-part-1 input-1))
+    (format t "
+Part 1: ~s
+" (day19-part-1 input-1))
     (format t "
 Part 2: ~s
 " (day19-part-2 input-1 input-2))))
