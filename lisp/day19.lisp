@@ -100,21 +100,28 @@
                  (multiple-value-bind (new-ptr output) (interpret program-copy y ptr)
                    (eq output 1)))))
       ;; (4493, 3266) Found by running for a while...
-      (let* ((x 4)
-             (y 3))
+      ;; (5825, 4234)
+      ;; (6472, 4704)
+      (let* ((x 12)
+             (y 9)
+             (x-pattern (map 'vector #'identity '(1 1 2 1 1 2 1 2)))
+             (x-len     (length x-pattern))
+             ;; (y-pattern (map 'vector #'identity '(1))) (always go down 1...)
+             )
         (iter
           (format t "Current: (~a, ~a)~%" x y)
+          (with pos = 0)
           (when (and (> (- x 100) 0)
                      (> (- y 100) 0)
                      (works-at (- x 100) (- y 100)))
             (format t "Closest point: (~a, ~a)~%" (- x 100) y)
             (return))
           (iter
-            (incf x)
-            (while (works-at x y)))
-          (iter
-            (incf y)
-            (while (not (works-at x y)))))))))
+            (for j from 0 below (aref x-pattern pos))
+            (incf x))
+          (incf pos)
+          (setf pos (mod pos x-len))
+          (incf y))))))
 
 ;; Wrong: 9580860
 
