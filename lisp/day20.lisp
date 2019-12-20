@@ -212,7 +212,6 @@
   (let ((paths       (make-hash-table :test #'equal))
         (all-targets (iter (for (key values) in-hashtable portals)
                            (unioning values))))
-    (format t "All-targets: ~a~%" all-targets)
     (iter
       (for target in all-targets)
       (let ((seen      (make-hash-table :test #'equal))
@@ -261,7 +260,8 @@
 
 (defun shortest-path-2 (all-paths portals start end min-x min-y max-x max-y)
   (let ((seen  (make-hash-table :test #'equal))
-        (queue (make-instance 'cl-heap:priority-queue)))
+        (queue (make-instance 'cl-heap:priority-queue))
+        (best  most-positive-fixnum))
     (cl-heap:enqueue queue (list 0 0 start) 0)
     (iter
       (for i from 0 below 100000)
@@ -269,12 +269,16 @@
       ;;(format t "Current: ~a~%" elem)
       (while elem)
       (for (level steps coord) = elem)
+      ;;(format t "level: ~a~%" level)
+      (when (> steps best)
+        (next-iteration))
       (when (and (eq level 0)
-                 (equal coord end))
+                 (equal coord end)
+                 (< steps best))
         (format t "FOUND IT!~%")
         (format t "The thing: ~a~%" elem)
         (format t "The steps: ~a~%" steps)
-        (return steps))
+        (setf best steps))
       (when (null (gethash level seen))
         (setf (gethash level seen)
               (make-hash-table :test #'equal)))
@@ -290,26 +294,29 @@
                             (eq coord-y max-y))))))
         (let* ((portal      (find-portal coord portals))
                (portal-dest (portal-jump-square portal coord portals)))
-          (when (and (not-on-outer-ring coord)
+          (when (and portal-dest
+                     (not-on-outer-ring coord)
                      (not-been-there (1+ level) portal-dest))
             (cl-heap:enqueue queue
                      (list (1+ level) (1+ steps) portal-dest)
-                     (+ steps
-                        (* 100 (1+ level)))))
-          (when (and (> 0 level)
+                     (+ (1+ steps)
+                        (* 1000 (1+ level)))))
+          (when (and portal-dest
+                     (> level 0)
                      (not (not-on-outer-ring coord))
                      (not-been-there (1- level) portal-dest))
             (cl-heap:enqueue queue
                      (list (1- level) (1+ steps) portal-dest)
-                     (+ steps
-                        (* 100 (1- level)))))
+                     (+ (1+ steps)
+                        (* 1000 (1- level)))))
          (iter
            (for (destination steps-to-take) in-hashtable (gethash coord all-paths))
            (when (not-been-there level destination)
              (cl-heap:enqueue queue
                       (list level (+ steps steps-to-take) destination)
-                      (+ steps
-                        (* 100 level))))))))))
+                      (+ (+ steps steps-to-take)
+                         (* 1000 level))))))))
+    best))
 
 ;; Scratch area:
 
@@ -413,11 +420,12 @@ Expected: ~s
 ")
   (let ((input-1 (file-lines "day20-part-1"))
         (input-2 (file-lines "day20-part-1")))
-;;     (format t "
-;; Part 1: ~s
-;; " (day20-part-1 input-1))
-;;     (format t "
-;; Part 2: ~s
-;; " (day20-part-2 input-2))
-    (day20-part-2 input-2)))
+    (format t "
+Part 1: ~s
+" (day20-part-1 input-1))
+    (format t "
+Part 2: ~s
+" (day20-part-2 input-2))
+    (day20-part-2 input-2)
+    ))
 
