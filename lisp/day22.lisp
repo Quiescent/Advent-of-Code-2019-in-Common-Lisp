@@ -84,10 +84,14 @@
   (let* ((number-of-cards
           ;;10007
           119315717514047
-          )
+           )
          (all-instructions (map 'vector #'parse-line-1 input-elements))
          (instructions-length (length all-instructions))
-         (ticks 0))
+         (ticks 0)
+         (required-applications (iter (for i from 0 below 64)
+                                      (when (logbitp i 101741582076661)
+                                        (collecting i)))
+           ))
     (declare (type unsigned-byte number-of-cards))
     (declare (type unsigned-byte ticks))
     (declare (type unsigned-byte instructions-length))
@@ -107,7 +111,9 @@
          (inc (number idx)
            (declare (type fixnum idx))
            (declare (type fixnum number))
-           (solve-modulo number-of-cards idx number))
+           ;;(mod (* number idx) number-of-cards)
+           (solve-modulo number-of-cards idx number)
+           )
          (rev (idx)
            (declare (type fixnum idx))
            (- (1- number-of-cards) idx))
@@ -130,16 +136,59 @@
                  ;; (format t "looking-for: ~a~%" x)
                  ;; (format t "looking-for-next: ~a~%" looking-for);
                  (solve looking-for (1- i))))))
-      ;;(format t "Initially: ~s~%" (solve 2020 (1- instructions-length)))
-      (solve 2020 (1- (* 1 instructions-length))
-             ;;(* 101741582076661 (1- instructions-length))
-             ;;(* 1 (1- instructions-length))
-             )
+      (format t "Initially: ~s~%" (solve 2020 (1- instructions-length)))
+      (iter
+        (with poly = (cons 0 1))
+        (for i from 0 below instructions-length)
+        (for (c . x) = poly)
+        (destructuring-bind (op . number) (aref all-instructions i)
+          (case op
+            (cut (setf poly (cons (- c number
+                                     ;; (if (< number 0)
+                                       ;;     (+ number-of-cards number)
+                                       ;;     number)
+                                     )
+                                  x)))
+            (inc (setf poly (cons (* c number)
+                                  (* x number))))
+            (rev (setf poly (cons (- (1- number-of-cards) c) x)))))
+        (finally
+         (return
+           (destructuring-bind (c . x) poly
+             ;; (format t "new sol: ~a~%" (mod (+ c (* x 2020)) number-of-cards))
+             ;;(mod (+ c (* 2019 x)) number-of-cards)
+             ;; (iter
+             ;;   (for i from 0 below 1000000000)
+             ;;   (when (eq 1 (mod (* i x) number-of-cards))
+             ;;     (return (mod (* i (mod (- 2020 c) number-of-cards)) number-of-cards))))
+             (let ((power-applications (make-array '(64) :initial-element nil))
+                   (inverse (multiplicative-inverse x number-of-cards)))
+               (setf (aref power-applications 0)
+                     (lambda (x _)
+                       (mod (* inverse (mod (- x c) number-of-cards)) number-of-cards)))
+               (iter
+                 (for i from 1 below 64)
+                 ;;(format t "Setting up ~a to call ~a~%" i (1- i))
+                 (setf (aref power-applications i)
+                       (lambda (x i)
+                         (let* ((f (aref power-applications (1- i))))
+                           (funcall f (funcall f x (1- i)) (1- i))))))
+               (iter
+                 (with ans = 2020)
+                 (for idx in required-applications)
+                 (format t "idx: ~a~%" idx)
+                 (setf ans (funcall (aref power-applications idx) ans idx))
+                 (finally (return ans))))))))
+
+      ;; (solve 2020 (1- (* 1 instructions-length))
+      ;;        ;;(* 101741582076661 (1- instructions-length))
+      ;;        ;;(* 1 (1- instructions-length))
+      ;;        )
       )
     ;; (iter
     ;;   (for cnt from 0 below 1)
     ;;   (with seen = (make-hash-table))
-    
+
     ;;   (for 2020-card = (aref cards 2020))
     ;;   (when (gethash 2020-card seen)
     ;;     (format t "Repeat at: ~a~%" cnt)
@@ -150,8 +199,40 @@
     ;; (aref cards 2020)
     ))
 
+;; https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
+;; function inverse(a, n)
+;;     t := 0;     newt := 1;
+;;     r := n;     newr := a;
+;;     while newr ≠ 0
+;;         quotient := r div newr
+;;         (t, newt) := (newt, t - quotient * newt)
+;;         (r, newr) := (newr, r - quotient * newr)
+;;     if r > 1 then return "a is not invertible"
+;;     if t < 0 then t := t + n
+;;     return t
+
+(defun multiplicative-inverse (x y)
+  (let ((z     0)
+        (new_z 1)
+        (r     y)
+        (new_r x))
+    (iter
+      (while (not (eq 0 new_r)))
+      (for q = (floor r new_r))
+      (for temp_r = new_r)
+      (for temp_z = new_z)
+      (setf new_z (- z (* q new_z))
+            new_r (- r (* q new_r)))
+      (setf r temp_r
+            z temp_z))
+    (when (> r 1)
+      (error "not divisible"))
+    (if (< z 0)
+        (+ z y)
+        z)))
+
 ;; Too low: 44082672264648
-;; 
+;;
 ;; Got to tick: 527600000 before deciding that it wont make it before
 ;; christmas(!)
 
@@ -239,4 +320,3 @@
         (input-2 (file-lines "day22-part-1")))
     (format t "~%Part 1: ~s~%" (day22-part-1 input-1))
     (format t "~%Part 2: ~s~%" (day22-part-2 input-2))))
-
