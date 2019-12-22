@@ -82,26 +82,28 @@
   "Run my solution to part two of the problem on the input in INPUT-ELEMENTS."
   ;; Remember the plus one for the amount of cards!!!
   (let* ((number-of-cards
-          10007
-          ;;119315717514047
+          ;;10007
+          119315717514047
           )
          (all-instructions (map 'vector #'parse-line-1 input-elements))
          (instructions-length (length all-instructions))
          (ticks 0))
-    (declare (type fixnum number-of-cards))
-    (declare (type fixnum ticks))
-    (declare (type fixnum instructions-length))
+    (declare (type unsigned-byte number-of-cards))
+    (declare (type unsigned-byte ticks))
+    (declare (type unsigned-byte instructions-length))
     (labels
         ((cut (number idx)
            (declare (type fixnum idx))
            (declare (type fixnum number))
-           (let ((cut (if (< number 0)
-                          (+ number-of-cards number)
-                          number)))
+           (let* ((cut (if (< number 0)
+                           (+ number-of-cards number)
+                           number))
+                  (cut-idx (+ idx cut)))
              ;; (format t "Cutting: Cut: ~a, idx: ~a, number-of-cards: ~a~%"
              ;;         cut idx number-of-cards)
-             (declare (type fixnum cut))
-             (mod (+ idx cut) number-of-cards)))
+             (declare (type unsigned-byte cut))
+             (declare (type unsigned-byte cut-idx))
+             (mod cut-idx number-of-cards)))
          (inc (number idx)
            (declare (type fixnum idx))
            (declare (type fixnum number))
