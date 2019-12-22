@@ -2,6 +2,11 @@
 
 ;;; Commentary:
 ;; My solution to advent of code: day22
+;;
+;; This one is dedicated to my brother Henry.  He's a mathametician
+;; and very kindly put up with my questions and general ignorance of
+;; some pretty cool maths.  Without his help I wouldn't have solved
+;; this problem.
 
 ;;; Code:
 
@@ -88,9 +93,10 @@
          (all-instructions (map 'vector #'parse-line-1 input-elements))
          (instructions-length (length all-instructions))
          (ticks 0)
-         (required-applications (iter (for i from 0 below 64)
-                                      (when (logbitp i 101741582076661)
-                                        (collecting i)))
+         (required-applications 
+           (iter (for i from 0 below 64)
+                                          (when (logbitp i 101741582076661)
+                                            (collecting i)))
            ))
     (declare (type unsigned-byte number-of-cards))
     (declare (type unsigned-byte ticks))
@@ -136,7 +142,7 @@
                  ;; (format t "looking-for: ~a~%" x)
                  ;; (format t "looking-for-next: ~a~%" looking-for);
                  (solve looking-for (1- i))))))
-      (format t "Initially: ~s~%" (solve 2020 (1- instructions-length)))
+      (format t "Initially: ~s~%" (solve 2020 (1- (* 2 instructions-length))))
       (iter
         (with poly = (cons 0 1))
         (for i from 0 below instructions-length)
@@ -164,21 +170,25 @@
              (let ((power-applications (make-array '(64) :initial-element nil))
                    (inverse (multiplicative-inverse x number-of-cards)))
                (setf (aref power-applications 0)
-                     (lambda (x _)
-                       (mod (* inverse (mod (- x c) number-of-cards)) number-of-cards)))
+                     (cons (mod (* inverse (- number-of-cards c)) number-of-cards) inverse))
                (iter
                  (for i from 1 below 64)
                  ;;(format t "Setting up ~a to call ~a~%" i (1- i))
                  (setf (aref power-applications i)
-                       (lambda (x i)
-                         (let* ((f (aref power-applications (1- i))))
-                           (funcall f (funcall f x (1- i)) (1- i))))))
+                       (destructuring-bind (c . x) (aref power-applications (1- i))
+                         (cons (mod (+ (* x c) c) number-of-cards)
+                               (mod (* x x) number-of-cards)))))
+               (format t "powers: ~a~%" power-applications)
                (iter
                  (with ans = 2020)
                  (for idx in required-applications)
                  (format t "idx: ~a~%" idx)
-                 (setf ans (funcall (aref power-applications idx) ans idx))
-                 (finally (return ans))))))))
+                 (destructuring-bind (c . x) (aref power-applications idx)
+                   ;(setf ans (mod (* x (mod (+ c ans) number-of-cards)) number-of-cards))
+                   (setf ans (mod (+ c (mod (* x ans) number-of-cards)) number-of-cards)))
+                 (finally (return ans)))
+               ;;(mod (* inverse (mod (+ (- number-of-cards c) 2020) number-of-cards)) number-of-cards)
+               )))))
 
       ;; (solve 2020 (1- (* 1 instructions-length))
       ;;        ;;(* 101741582076661 (1- instructions-length))
@@ -198,6 +208,13 @@
     ;;   )
     ;; (aref cards 2020)
     ))
+
+;; Too low: 44082672264648
+;;
+;; Got to tick: 527600000 before deciding that it wont make it before
+;; christmas(!)
+;; Too low: 40811190607635
+ 
 
 ;; https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
 ;; function inverse(a, n)
@@ -230,11 +247,6 @@
     (if (< z 0)
         (+ z y)
         z)))
-
-;; Too low: 44082672264648
-;;
-;; Got to tick: 527600000 before deciding that it wont make it before
-;; christmas(!)
 
 (defun parse-line-1 (line)
   (let ((number (car (mapcar #'read-from-string (ppcre:all-matches-as-strings "[-0-9]+" line)))))
